@@ -271,6 +271,7 @@ public:
       preferredPDFLHAIDs_.push_back(lhaid);
       lhaNameToID_[name] = lhaid;
       lhaNameToID_[name + ".LHgrid"] = lhaid;
+      // std::cout << "preferredPDF: " << name << std::endl;
     }
   }
 
@@ -536,11 +537,18 @@ public:
 
       std::regex weightgroupmg26x("<weightgroup\\s+(?:name|type)=\"(.*)\"\\s+combine=\"(.*)\"\\s*>");
       std::regex weightgroup("<weightgroup\\s+combine=\"(.*)\"\\s+(?:name|type)=\"(.*)\"\\s*>");
-      std::regex weightgroupRwgt("<weightgroup\\s+(?:name|type)=\"(.*)\"\\s*>");
+      std::regex weightgroupRwgt("<weightgroup\\s+(?:name|type)=\"([^\"]*)\"[^>]*>");
       std::regex endweightgroup("</weightgroup>");
       std::regex scalewmg26x(
-          "<weight\\s+(?:.*\\s+)?id=\"(\\d+)\"\\s*(?:lhapdf=\\d+|dyn=\\s*-?\\d+)?\\s*((?:[mM][uU][rR]|renscfact)=\"("
-          "\\S+)\"\\s+(?:[mM][uU][Ff]|facscfact)=\"(\\S+)\")(\\s+.*)?</weight>");
+      "<weight\\s+(?:.*\\s+)?id=\"(\\d+)\"\\s*(?:lhapdf=\\d+|dyn=\\s*-?\\d+)?\\s*((?:[mM][uU][rR]|renscfact)=\"("
+      "\\S+)\"\\s+(?:[mM][uU][Ff]|facscfact)=\"(\\S+)\")(\\s+.*)?</weight>");
+      // why are we throwing away weights with DYN_SCALE?
+      // std::regex scalewmg26xNew(
+      //     "<weight\\s*((?:.+)?(?:[mM][uU][fF]|facscfact)=\"(\\S+)\"\\s+(?:[mM][uU][Rr]|renscfact)=\"(\\S+)\").+id=\"(\\d+)\">(."
+      //     "*)?</weight>");
+      std::regex scalewmg26xNew(
+          "<weight\\s*((?:[mM][uU][fF]|facscfact)=\"(\\S+)\"\\s+(?:[mM][uU][Rr]|renscfact)=\"(\\S+)\").+id=\"(\\d+)\">(."
+          "*)?</weight>");
       std::regex scalew(
           "<weight\\s+(?:.*\\s+)?id=\"(\\d+)\">\\s*(?:lhapdf=\\d+|dyn=\\s*-?\\d+)?\\s*((?:mu[rR]|renscfact)=(\\S+)\\s+("
           "?:mu[Ff]|facscfact)=(\\S+)(\\s+.*)?)</weight>");
@@ -551,9 +559,17 @@ public:
           "<weight\\s+id=\"(\\d+)\"\\s*MUR=\"(?:\\S+)\"\\s*MUF=\"(?:\\S+)\"\\s*(?:PDF "
           "set|lhapdf|PDF|pdfset)\\s*=\\s*\"(\\d+)\"\\s*>\\s*(?:PDF=(\\d+)\\s*MemberID=(\\d+))?\\s*(?:\\s.*)?</"
           "weight>");
-      std::regex rwgt("<weight\\s+id=\"(.+)\">(.+)?(</weight>)?");
+
+      //<weight MUF="1.0" MUR="1.0" PDF="325300" id="1048"> PDF=325300 MemberID=0 </weight>
+      std::regex pdfwmg26xNew(
+          "<weight\\s+MUF=\"(?:\\S+)\"\\s*MUR=\"(?:\\S+)\"\\s*PDF=\"(?:\\S+)\"\\s*id=\"(\\S+)\"\\s*>"
+          "\\s*(?:PDF=(\\d+)\\s*MemberID=(\\d+))?\\s*(?:\\s.*)?</"
+          "weight>");
+      std::regex rwgt("<weight\\s+id=\"([^\"]+)\">([^<]+)?(</weight>)?");
       std::smatch groups;
+
       for (auto iter = lheInfo->headers_begin(), end = lheInfo->headers_end(); iter != end; ++iter) {
+  
         if (iter->tag() != "initrwgt") {
           if (lheDebug)
             std::cout << "Skipping LHE header with tag" << iter->tag() << std::endl;
@@ -565,12 +581,19 @@ public:
         bool missed_weightgroup =
             false;  //Needed because in some of the samples ( produced with MG26X ) a small part of the header info is ordered incorrectly
         bool ismg26x = false;
+        bool ismg26xNew = false;
         for (unsigned int iLine = 0, nLines = lines.size(); iLine < nLines;
              ++iLine) {  //First start looping through the lines to see which weightgroup pattern is matched
           boost::replace_all(lines[iLine], "&lt;", "<");
           boost::replace_all(lines[iLine], "&gt;", ">");
           if (std::regex_search(lines[iLine], groups, weightgroupmg26x)) {
             ismg26x = true;
+            // if (lheDebug)
+            //   std::cout << "Using mg26x" << std::endl;
+          } else if (std::regex_search(lines[iLine], groups, scalewmg26xNew) || std::regex_search(lines[iLine], groups, pdfwmg26xNew)) {
+            ismg26xNew = true;
+            // if (lheDebug)
+            //   std::cout << "Using mg26xnew" << std::endl;
           }
         }
         for (unsigned int iLine = 0, nLines = lines.size(); iLine < nLines; ++iLine) {
@@ -588,7 +611,7 @@ public:
               for (++iLine; iLine < nLines; ++iLine) {
                 if (lheDebug)
                   std::cout << "    " << lines[iLine];
-                if (std::regex_search(lines[iLine], groups, ismg26x ? scalewmg26x : scalew)) {
+                if (std::regex_search(lines[iLine], groups, ismg26x ? scalewmg26x : (ismg26xNew ? scalewmg26xNew : scalew))) {
                   if (lheDebug)
                     std::cout << "    >>> Scale weight " << groups[1].str() << " for " << groups[3].str() << " , "
                               << groups[4].str() << " , " << groups[5].str() << std::endl;
@@ -605,7 +628,7 @@ public:
                     std::cout << ">>> Looks like the beginning of a new weight group, I will assume I missed the end "
                                  "of the group."
                               << std::endl;
-                  if (ismg26x)
+                  if (ismg26x || ismg26xNew)
                     missed_weightgroup = true;
                   --iLine;  // rewind by one, and go back to the outer loop
                   break;
@@ -637,7 +660,7 @@ public:
                     std::cout << ">>> Looks like the beginning of a new weight group, I will assume I missed the end "
                                  "of the group."
                               << std::endl;
-                  if (ismg26x)
+                  if (ismg26x || ismg26xNew)
                     missed_weightgroup = true;
                   --iLine;  // rewind by one, and go back to the outer loop
                   break;
@@ -674,12 +697,14 @@ public:
                     std::cout << ">>> Looks like the beginning of a new weight group, I will assume I missed the end "
                                  "of the group."
                               << std::endl;
-                  if (ismg26x)
+                  if (ismg26x || ismg26xNew)
                     missed_weightgroup = true;
                   --iLine;  // rewind by one, and go back to the outer loop
                   break;
                 }
               }
+              // why are we throwing away other pdfs? We are saving only a few pdfs (which can be specified as parameter) and then out of these few
+              // saving in the table only weights from ONE pdf. We're loosing information
             } else if (lhaNameToID_.find(groupname) != lhaNameToID_.end()) {
               if (lheDebug)
                 std::cout << ">>> Looks like an old-style PDF weight for an individual pdf" << std::endl;
@@ -688,10 +713,14 @@ public:
               for (++iLine; iLine < nLines; ++iLine) {
                 if (lheDebug)
                   std::cout << "    " << lines[iLine];
-                if (std::regex_search(lines[iLine], groups, ismg26x ? pdfwmg26x : pdfwOld)) {
+                if (std::regex_search(lines[iLine], groups, ismg26x ? pdfwmg26x : (ismg26xNew ? pdfwmg26xNew : pdfwOld))) {
                   unsigned int member = 0;
-                  if (ismg26x == 0) {
+                  if (!ismg26x && !ismg26xNew) {
                     member = std::stoi(groups.str(2));
+                  } else if (ismg26xNew) {
+                    if (!groups.str(3).empty()) {
+                      member = std::stoi(groups.str(3));
+                    }
                   } else {
                     if (!groups.str(4).empty()) {
                       member = std::stoi(groups.str(4));
@@ -720,10 +749,30 @@ public:
                     std::cout << ">>> Looks like the beginning of a new weight group, I will assume I missed the end "
                                  "of the group."
                               << std::endl;
-                  if (ismg26x)
+                  if (ismg26x || ismg26xNew)
                     missed_weightgroup = true;
                   --iLine;  // rewind by one, and go back to the outer loop
                   break;
+                }
+              }
+            } else if (groupname == "mass_variation" || groupname == "sthw2_variation" ||
+                       groupname == "width_variation") {
+              if (lheDebug)
+                std::cout << ">>> Looks like an EW parameter weight" << std::endl;
+              for (++iLine; iLine < nLines; ++iLine) {
+                if (lheDebug)
+                  std::cout << "    " << lines[iLine];
+                if (std::regex_search(lines[iLine], groups, rwgt)) {
+                  std::string rwgtID = groups.str(1);
+                  if (lheDebug)
+                    std::cout << "    >>> LHE reweighting weight: " << rwgtID << std::endl;
+                  if (std::find(lheReweighingIDs.begin(), lheReweighingIDs.end(), rwgtID) == lheReweighingIDs.end()) {
+                    // we're only interested in the beggining of the block
+                    lheReweighingIDs.emplace_back(rwgtID);
+                  }
+                } else if (std::regex_search(lines[iLine], endweightgroup)) {
+                  if (lheDebug)
+                    std::cout << ">>> Looks like the end of a weight group" << std::endl;
                 }
               }
             } else {
@@ -742,7 +791,7 @@ public:
                     std::cout << ">>> Looks like the beginning of a new weight group, I will assume I missed the end "
                                  "of the group."
                               << std::endl;
-                  if (ismg26x)
+                  if (ismg26x || ismg26xNew)
                     missed_weightgroup = true;
                   --iLine;  // rewind by one, and go back to the outer loop
                   break;
@@ -750,6 +799,8 @@ public:
               }
             }
           } else if (std::regex_search(lines[iLine], groups, weightgroupRwgt)) {
+            if (lheDebug)
+              std::cout << ">>> Should be LHE weights for reweighting" << std::endl;
             std::string groupname = groups.str(1);
             if (groupname == "mg_reweighting") {
               if (lheDebug)
