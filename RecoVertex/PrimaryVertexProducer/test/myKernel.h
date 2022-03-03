@@ -20,7 +20,7 @@ struct Event {
 
 //__device__ void kernel1(
 */
-
+/*
 struct track_t {
     double z;                        // z-coordinate at point of closest approach to the beamline
     double dz2;                      // square of the error of z(pca)
@@ -52,11 +52,15 @@ struct Event {
   std::vector<float> pttrack;
   std::vector<uint16_t> ivert;
 };
-
+*/
 using namespace std;
 
 
 
+
+#define N   1024
+#define RADIUS 3
+#define BLOCK_SIZE 16
 
 __global__ void myKernel(int *in, int *out) {
         __shared__ int temp[BLOCK_SIZE + 2 * RADIUS]; 
@@ -81,10 +85,7 @@ __global__ void myKernel(int *in, int *out) {
         out[gindex] = result;
 
 }
-#define N   1024
-#define RADIUS 3
-#define BLOCK_SIZE 16
-
+/*
 vector<track_t> fill(const const vector<reco::TransientTrack>& tracks) const {
   // prepare track data for clustering
   vector<track_t> tks;
@@ -113,10 +114,10 @@ vector<track_t> fill(const const vector<reco::TransientTrack>& tracks) const {
 }
 
 
-
-// void fill_ints(int * x, int n){
-//         fill_n(x, n, 1);
-// }
+*/
+void fill_ints(int * x, int n){
+        fill_n(x, n, 1);
+}
 
 int main(void) {
     int *in, * out;

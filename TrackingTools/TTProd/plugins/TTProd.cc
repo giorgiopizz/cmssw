@@ -28,6 +28,23 @@
 
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/StreamID.h"
+#include "FWCore/Framework/interface/EventSetup.h"
+#include "FWCore/Framework/interface/Frameworkfwd.h"
+/*
+#include "FWCore/Framework/interface/one/EDAnalyzer.h"
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/EventSetup.h"
+#include "MagneticField/Engine/interface/MagneticField.h"
+#include "TrackingTools/Records/interface/TransientTrackRecord.h"
+#include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
+
+#include "DataFormats/TrackReco/interface/TrackFwd.h"
+#include "DataFormats/Common/interface/Handle.h"
+#include "FWCore/Framework/interface/ESHandle.h"
+#include "DataFormats/BeamSpot/interface/BeamSpot.h"
+*/
 
 
 //
@@ -52,6 +69,10 @@ private:
   //virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&) override;
 
   // ----------member data ---------------------------
+  
+//  const edm::ESGetToken<TransientTrackBuilder, TransientTrackRecord> ttkToken_;
+//  edm::EDGetTokenT<reco::BeamSpot> bsToken;
+//  edm::EDGetTokenT<reco::TrackCollection> trkToken;
 };
 
 //
@@ -66,8 +87,10 @@ private:
 //
 // constructors and destructor
 //
-TTProd::TTProd(const edm::ParameterSet& iConfig)
+TTProd::TTProd(const edm::ParameterSet& iConfig) //: ttkToken_(esConsumes(edm::ESInputTag{"", "TransientTrackBuilder"}) )
 {
+    //trkToken = consumes<reco::TrackCollection>(iConfig.getParameter<edm::InputTag>("TrackLabel"));
+    // bsToken = consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpotLabel"));
   //register your products
 /* Examples
   produces<ExampleData2>();
@@ -95,34 +118,36 @@ TTProd::~TTProd() {
 // ------------ method called to produce the data  ------------
 void TTProd::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
   using namespace edm;
-    using namespace std;
+  /*
+  using namespace std;
   reco::BeamSpot beamSpot;
   edm::Handle<reco::BeamSpot> recoBeamSpotHandle;
-  event.getByToken(bsToken, recoBeamSpotHandle);
+  iEvent.getByToken(bsToken, recoBeamSpotHandle);
   if (recoBeamSpotHandle.isValid()) {
     beamSpot = *recoBeamSpotHandle;
   } else {
-    edm::LogError("UnusableBeamSpot") << "No beam spot available from EventSetup";
+    edm::LogError("UnusableBeamSpot") << "No beam spot available from iEventiSetup";
   }
-  // get RECO tracks from the event
+  // get RECO tracks from the iEvent
   // `tks` can be used as a ptr to a reco::TrackCollection
   edm::Handle<reco::TrackCollection> tks;
   
-  event.getByToken(trkToken, tks);
+  iEvent.getByToken(trkToken, tks);
 
   // interface RECO tracks to vertex reconstruction
-  const auto& theB = &setup.getData(ttkToken_);
+  const auto& theB = &iSetup.getData(ttkToken_);
   std::vector<reco::TransientTrack> t_tks;
 
     t_tks = (*theB).build(tks, beamSpot);
 
     edm::LogPrint("TrackerTrackBuilderTest")
         << " Asking for the TransientTrackBuilder with name TransientTrackBuilder\n";
-    //const TransientTrackBuilder* theB = &setup.getData(ttkToken_);
+    //const TransientTrackBuilder* theB = &iSetup.getData(ttkToken_);
 
     edm::LogPrint("TrackerTrackBuilderTest") << " Got a " << typeid(*theB).name() << endl;
     edm::LogPrint("TrackerTrackBuilderTest")
         << "Field at origin (in Testla): " << (*theB).field()->inTesla(GlobalPoint(0., 0., 0.)) << endl;
+*/
 /* This is an event example
   //Read 'ExampleData' from the Event
   ExampleData const& in = iEvent.get(inToken_);
