@@ -45,6 +45,8 @@
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "DataFormats/BeamSpot/interface/BeamSpot.h"
 
+//#include "RecoVertex/PrimaryVertexProducer/test/myKernel.h"
+
 
 //
 // class declaration
@@ -138,15 +140,18 @@ void TTProdNew::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
   std::vector<reco::TransientTrack> t_tks;
 
   t_tks = (*theB).build(tks, beamSpot);
-    edm::LogPrint("TrackerTrackBuilderTest")
-        << " Asking for the TransientTrackBuilder with name TransientTrackBuilder\n";
-    //const TransientTrackBuilder* theB = &iSetup.getData(ttkToken_);
+  edm::LogPrint("TrackerTrackBuilderTest")
+      << " Asking for the TransientTrackBuilder with name TransientTrackBuilder\n";
+  //const TransientTrackBuilder* theB = &iSetup.getData(ttkToken_);
 
-    edm::LogPrint("TrackerTrackBuilderTest") << " Got a " << typeid(*theB).name() << endl;
-    edm::LogPrint("TrackerTrackBuilderTest")
-        << "Field at origin (in Testla): " << (*theB).field()->inTesla(GlobalPoint(0., 0., 0.)) << endl;
-   // do something with TransientTracks: call kernel ecc...
-   
+  edm::LogPrint("TrackerTrackBuilderTest") << " Got a " << typeid(*theB).name() << endl;
+  edm::LogPrint("TrackerTrackBuilderTest")
+      << "Field at origin (in Testla): " << (*theB).field()->inTesla(GlobalPoint(0., 0., 0.)) << endl;
+
+  // do something with TransientTracks: call kernel ecc...
+  //gpuKernel::doSomething();   
+
+
 /* NO MORE NEEDED
   // insert transient track in event
   //

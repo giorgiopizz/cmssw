@@ -173,34 +173,8 @@ void gpuTest::acquire(edm::Event& iEvent, const edm::EventSetup& iSetup, edm::Wa
 void gpuTest::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
   cms::cuda::ScopedContextProduce ctx{ctxState_};
     
-  
+  // now we should get results from gpuAlgo  
 
-  // do something with TransientTracks: call kernel ecc...
-  
-//  gpuKernel::doSomething();   
-
-
-/* NO MORE NEEDED
-  // insert transient track in event
-  //
-  auto result = std::make_unique<std::vector<reco::TransientTrack>>();
-  result->push_back(t_tks.at(0));
-  iEvent.put(std::move(result), "TransientTrack");
-*/
-
-/* This is an event example
-  //Read 'ExampleData' from the Event
-  ExampleData const& in = iEvent.get(inToken_);
-
-  //Use the ExampleData to create an ExampleData2 which 
-  // is put into the Event
-  iEvent.put(std::make_unique<ExampleData2>(in));
-*/
-
-/* this is an EventSetup example
-  //Read SetupData from the SetupRecord in the EventSetup
-  SetupData& setup = iSetup.getData(setupToken_);
-*/
 }
 
 // ------------ method called when starting to processes a run  ------------
