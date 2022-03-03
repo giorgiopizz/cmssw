@@ -1,0 +1,13 @@
+<use name="boost"/>
+<use name="root"/>
+<use name="FWCore/Framework"/>
+<use name="FWCore/ParameterSet"/>
+<use name="HeterogeneousCore/CUDAUtilities"/>
+<use name="RecoVertex/VertexTools"/>
+
+<bin file="myKernel.cu" name="myKernel">
+  <use name="cuda"/>
+  <flags CUDA_FLAGS="-g -DGPU_DEBUG -DONE_KERNEL"/>
+  <flags CXXFLAGS="-g"/>
+</bin>
+
