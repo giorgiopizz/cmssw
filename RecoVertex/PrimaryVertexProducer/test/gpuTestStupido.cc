@@ -1,8 +1,8 @@
 // -*- C++ -*-
 //
-// Class:      gpuTest
+// Class:      gpuTestStupido
 //
-/**\class gpuTest gpuTest.cc TrackingTools/gpuTest/plugins/gpuTest.cc
+/**\class gpuTestStupido gpuTestStupido.cc TrackingTools/gpuTestStupido/plugins/gpuTestStupido.cc
 
  Description: [one line class summary]
 
@@ -52,22 +52,22 @@
 
 #include "HeterogeneousCore/CUDACore/interface/ScopedContext.h"
 
-#include "gpuKernel.cu"
+#include "gpuKernelStupido.h"
 
 //
 // class declaration
 //
 
-class gpuTest : public edm::stream::EDProducer<edm::ExternalWork> {
+class gpuTestStupido : public edm::stream::EDProducer<> {
 public:
-  explicit gpuTest(const edm::ParameterSet&);
-  ~gpuTest() override = default;
+  explicit gpuTestStupido(const edm::ParameterSet&);
+  ~gpuTestStupido() override = default;
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
 private:
-  void acquire(edm::Event const& iEvent, edm::EventSetup const& iSetup, edm::WaitingTaskWithArenaHolder waitingTaskHolder) override;
-  void produce(edm::Event& iEvent,  edm::EventSetup const& iSetup) override;
+  // void acquire(edm::Event const& iEvent, edm::EventSetup const& iSetup, edm::WaitingTaskWithArenaHolder waitingTaskHolder) override;
+  virtual void produce(edm::Event& iEvent,  edm::EventSetup const& iSetup) override;
 
 //  void beginStream(edm::StreamID) override;
 //  void produce(edm::Event&, const edm::EventSetup&) override;
@@ -80,14 +80,14 @@ private:
 
   // ----------member data ---------------------------
   
-  const gpuKernel::Producer gpuAlgo;
+  //const gpuKernel::Producer gpuAlgo;
 
   const edm::ESGetToken<TransientTrackBuilder, TransientTrackRecord> ttkToken_;
   edm::EDGetTokenT<reco::BeamSpot> bsToken;
   edm::EDGetTokenT<reco::TrackCollection> trkToken;
 
 //  edm::EDPutTokenT<cms::cuda::Product<reco::VertexCollection>>();
-  cms::cuda::ContextState ctxState_;
+  //cms::cuda::ContextState ctxState_;
 };
 
 //
@@ -102,10 +102,11 @@ private:
 //
 // constructors and destructor
 //
-gpuTest::gpuTest(const edm::ParameterSet& iConfig) : ttkToken_(esConsumes(edm::ESInputTag{"", "TransientTrackBuilder"}) )
+gpuTestStupido::gpuTestStupido(const edm::ParameterSet& iConfig) : ttkToken_(esConsumes(edm::ESInputTag{"", "TransientTrackBuilder"}) )
 {
     trkToken = consumes<reco::TrackCollection>(iConfig.getParameter<edm::InputTag>("TrackLabel"));
     bsToken = consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpotLabel"));
+}
   //register your products
 //    produces<cms::cuda::Product<reco::VertexCollection>>();
 
@@ -117,7 +118,7 @@ gpuTest::gpuTest(const edm::ParameterSet& iConfig) : ttkToken_(esConsumes(edm::E
  
   //if you want to put into the Run
   produces<ExampleData2,InRun>();
-*/
+
   //now do what ever other initialization is needed
 }
 
@@ -136,11 +137,10 @@ struct track_t {
 };
 
 */
-void gpuTest::acquire(edm::Event const& iEvent, edm::EventSetup const& iSetup, edm::WaitingTaskWithArenaHolder waitingTaskHolder) {
-  cms::cuda::ScopedContextAcquire ctx{iEvent.streamID(), std::move(waitingTaskHolder), ctxState_};
 
-//  using namespace edm;
-//  using namespace std;
+// ------------ method called to produce the data  ------------
+void gpuTestStupido::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
+    
   reco::BeamSpot beamSpot;
   edm::Handle<reco::BeamSpot> recoBeamSpotHandle;
   iEvent.getByToken(bsToken, recoBeamSpotHandle);
@@ -170,7 +170,7 @@ void gpuTest::acquire(edm::Event const& iEvent, edm::EventSetup const& iSetup, e
       << "Field at origin (in Testla): " << (*theB).field()->inTesla(GlobalPoint(0., 0., 0.)) << std::endl;
 */
 
-  gpuKernel::track_SoA tks_SoA;
+  gpuKernelStupido::track_SoA tks_SoA;
   double vertexSize_ = 0.006;
   double d0CutOff_ = 3;
   int i_t = 0;
@@ -195,30 +195,21 @@ void gpuTest::acquire(edm::Event const& iEvent, edm::EventSetup const& iSetup, e
     //t.tt = &(*it);
     tks_SoA.Z[i_t] = 1.;
   }
- 
-  gpuAlgo.makeAsync(ctx.stream(), tks_SoA);
-
-}
-
-// ------------ method called to produce the data  ------------
-void gpuTest::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
-  cms::cuda::ScopedContextProduce ctx{ctxState_};
-    
   // now we should get results from gpuAlgo  
-
+  gpuKernelStupido::makeAsync(tks_SoA);
 }
 
 // ------------ method called when starting to processes a run  ------------
 /*
 void
-gpuTest::beginRun(edm::Run const&, edm::EventSetup const&)
+gpuTestStupido::beginRun(edm::Run const&, edm::EventSetup const&)
 {
 }
 */
 // ------------ method called when ending the processing of a run  ------------
 /*
 void
-gpuTest::endRun(edm::Run const&, edm::EventSetup const&)
+gpuTestStupido::endRun(edm::Run const&, edm::EventSetup const&)
 {
 }
 */
@@ -226,7 +217,7 @@ gpuTest::endRun(edm::Run const&, edm::EventSetup const&)
 // ------------ method called when starting to processes a luminosity block  ------------
 /*
 void
-gpuTest::beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&)
+gpuTestStupido::beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&)
 {
 }
 */
@@ -234,13 +225,13 @@ gpuTest::beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const
 // ------------ method called when ending the processing of a luminosity block  ------------
 /*
 void
-gpuTest::endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&)
+gpuTestStupido::endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&)
 {
 }
 */
 
 // ------------ method fills 'descriptions' with the allowed parameters for the module  ------------
-void gpuTest::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+void gpuTestStupido::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   //The following says we do not know what parameters are allowed so do no validation
   // Please change this to state exactly what you do use, even if it is no parameters
   edm::ParameterSetDescription desc;
@@ -249,4 +240,4 @@ void gpuTest::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
 }
 
 //define this as a plug-in
-DEFINE_FWK_MODULE(gpuTest);
+DEFINE_FWK_MODULE(gpuTestStupido);

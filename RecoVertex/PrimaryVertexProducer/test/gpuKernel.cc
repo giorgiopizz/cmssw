@@ -8,9 +8,10 @@
 #define N   1024
 #define RADIUS 3
 #define BLOCK_SIZE 16
+
 namespace gpuKernel {
     
-    __global__ void myKernel(int *in, int *out) {
+    __device__ void myKernel(int *in, int *out) {
             __shared__ int temp[BLOCK_SIZE + 2 * RADIUS]; 
             int gindex = threadIdx.x + blockIdx.x * blockDim.x;
             int lindex = threadIdx.x + RADIUS;
@@ -37,7 +38,6 @@ namespace gpuKernel {
     void fill_ints(int * x, int n){
             std::fill_n(x, n, 1);
     }
-
     void Producer::makeAsync(cudaStream_t stream, track_SoA tks_SoA) const {
         std::cout << "Ciao" << std::endl;         
 
@@ -62,5 +62,4 @@ namespace gpuKernel {
         cudaFree(d_in); cudaFree(d_out);
         
     }
-
 }

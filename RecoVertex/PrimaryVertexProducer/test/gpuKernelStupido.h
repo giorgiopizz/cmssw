@@ -95,7 +95,7 @@ vector<track_t> fill(const const vector<reco::TransientTrack>& tracks) const {
 #define RADIUS 3
 #define BLOCK_SIZE 16
 
-namespace gpuKernel{
+namespace gpuKernelStupido {
     
     static constexpr int32_t MAXTRACKS = 1000;
 
@@ -109,12 +109,8 @@ namespace gpuKernel{
     // void fill_ints(int * x, int n);
     // __global__ void myKernel(int *in, int *out);
 
-    class Producer{
-    public:
-        Producer() {}
-        ~Producer() = default;
     
-        void makeAsync(cudaStream_t stream, track_SoA tks_SoA) const;
+    void makeAsync(track_SoA tks_SoA);
 /*
         void makeAsync(cudaStream_t stream, track_SoA tks_SoA) const{
             std::cout << "Ciao" << std::endl;         
@@ -139,7 +135,6 @@ namespace gpuKernel{
             cudaFree(d_in); cudaFree(d_out);
         }
 */            
-    };
 
 }
 /*

@@ -22,7 +22,7 @@ fileNames = cms.untracked.vstring(
 )
 
 process.demo = cms.EDProducer(
-    'gpuTest',
+    'gpuTestStupido',
     TrackLabel = cms.InputTag("generalTracks"),
     beamSpotLabel = cms.InputTag("offlineBeamSpot"),
 
