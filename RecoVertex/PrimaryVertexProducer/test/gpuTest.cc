@@ -16,7 +16,7 @@
 //
 
 // system include files
-#include <memory>
+//#include <memory>
 
 #include <cuda_runtime.h>
 
@@ -48,11 +48,11 @@
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "DataFormats/BeamSpot/interface/BeamSpot.h"
 
-#include <cuda_runtime.h>
+//#include <cuda_runtime.h>
 
-#include "CUDADataFormats/Common/interface/Product.h"
+//#include "CUDADataFormats/Common/interface/Product.h"
 
-#include "RecoVertex/PrimaryVertexProducer/test/gpuKernel.h"
+#include "gpuKernel.h"
 #include "HeterogeneousCore/CUDACore/interface/ScopedContext.h"
 
 //
@@ -62,14 +62,14 @@
 class gpuTest : public edm::stream::EDProducer<edm::ExternalWork> {
 public:
   explicit gpuTest(const edm::ParameterSet&);
-  ~gpuTest();
+  ~gpuTest() override = default;
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
-  void acquire(edm::Event&, const edm::EventSetup&,edm::WaitingTaskWithArenaHolder waitingTaskHolder);
-  void produce(edm::Event&, const edm::EventSetup&) override;
-
 private:
+  void acquire(edm::Event const& iEvent, edm::EventSetup const& iSetup, edm::WaitingTaskWithArenaHolder waitingTaskHolder) override;
+  void produce(edm::Event& iEvent,  edm::EventSetup const& iSetup) override;
+
 //  void beginStream(edm::StreamID) override;
 //  void produce(edm::Event&, const edm::EventSetup&) override;
 //  void endStream() override;
@@ -122,22 +122,26 @@ gpuTest::gpuTest(const edm::ParameterSet& iConfig) : ttkToken_(esConsumes(edm::E
   //now do what ever other initialization is needed
 }
 
-gpuTest::~gpuTest() {
-  // do anything here that needs to be done at destruction time
-  // (e.g. close files, deallocate resources etc.)
-  //
-  // please remove this method altogether if it would be left empty
-}
-
 //
 // member functions
 //
 
-void gpuTest::acquire(edm::Event& iEvent, const edm::EventSetup& iSetup, edm::WaitingTaskWithArenaHolder waitingTaskHolder) {
-    cms::cuda::ScopedContextAcquire ctx{iEvent.streamID(), std::move(waitingTaskHolder), ctxState_};
 
-  using namespace edm;
-  using namespace std;
+/*
+struct track_t {
+    double z;                        // z-coordinate at point of closest approach to the beamline
+    double dz2;                      // square of the error of z(pca)
+    const reco::TransientTrack *tt;  // a pointer to the Transient Track
+    double Z;                        // Z[i] for DA clustering
+    double pi;                       // track weight
+};
+
+*/
+void gpuTest::acquire(edm::Event const& iEvent, edm::EventSetup const& iSetup, edm::WaitingTaskWithArenaHolder waitingTaskHolder) {
+  cms::cuda::ScopedContextAcquire ctx{iEvent.streamID(), std::move(waitingTaskHolder), ctxState_};
+
+//  using namespace edm;
+//  using namespace std;
   reco::BeamSpot beamSpot;
   edm::Handle<reco::BeamSpot> recoBeamSpotHandle;
   iEvent.getByToken(bsToken, recoBeamSpotHandle);
@@ -157,15 +161,43 @@ void gpuTest::acquire(edm::Event& iEvent, const edm::EventSetup& iSetup, edm::Wa
   std::vector<reco::TransientTrack> t_tks;
 
   t_tks = (*theB).build(tks, beamSpot);
+/*
   edm::LogPrint("TrackerTrackBuilderTest")
       << " Asking for the TransientTrackBuilder with name TransientTrackBuilder\n";
   //const TransientTrackBuilder* theB = &iSetup.getData(ttkToken_);
 
-  edm::LogPrint("TrackerTrackBuilderTest") << " Got a " << typeid(*theB).name() << endl;
+  edm::LogPrint("TrackerTrackBuilderTest") << " Got a " << typeid(*theB).name() << std::endl;
   edm::LogPrint("TrackerTrackBuilderTest")
-      << "Field at origin (in Testla): " << (*theB).field()->inTesla(GlobalPoint(0., 0., 0.)) << endl;
-    
-  gpuAlgo.makeAsync(ctx.stream(), t_tks);
+      << "Field at origin (in Testla): " << (*theB).field()->inTesla(GlobalPoint(0., 0., 0.)) << std::endl;
+*/
+
+  gpuKernel::track_SoA tks_SoA;
+  double vertexSize_ = 0.006;
+  double d0CutOff_ = 3;
+  int i_t = 0;
+  for (std::vector<reco::TransientTrack>::const_iterator it = t_tks.begin(); it!= t_tks.end(); it++){
+         
+    //gpuKernel::track_t t;
+    tks_SoA.z[i_t] = ((*it).stateAtBeamLine().trackStateAtPCA()).position().z();
+    double tantheta = tan(((*it).stateAtBeamLine().trackStateAtPCA()).momentum().theta());
+    double phi = ((*it).stateAtBeamLine().trackStateAtPCA()).momentum().phi();
+    //  get the beam-spot
+    reco::BeamSpot beamspot = (it->stateAtBeamLine()).beamSpot();
+    tks_SoA.dz2[i_t] = pow((*it).track().dzError(), 2)  // track errror
+            + (pow(beamspot.BeamWidthX() * cos(phi), 2) + pow(beamspot.BeamWidthY() * sin(phi), 2)) /
+                  pow(tantheta, 2)  // beam-width induced
+            + pow(vertexSize_, 2);  // intrinsic vertex size, safer for outliers and short lived decays
+    if (d0CutOff_ > 0) {
+      Measurement1D IP = (*it).stateAtBeamLine().transverseImpactParameter();       // error constains beamspot
+      tks_SoA.pi[i_t] = 1. / (1. + exp(pow(IP.value() / IP.error(), 2) - pow(d0CutOff_, 2)));  // reduce weight for high ip tracks
+    } else {
+      tks_SoA.pi[i_t] = 1.;
+    }
+    //t.tt = &(*it);
+    tks_SoA.Z[i_t] = 1.;
+  }
+ 
+  gpuAlgo.makeAsync(ctx.stream(), tks_SoA);
 
 }
 

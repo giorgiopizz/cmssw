@@ -5,12 +5,11 @@
 <use name="HeterogeneousCore/CUDAUtilities"/>
 <use name="RecoVertex/VertexTools"/>
 
-<bin file="gpuKernel.cu" name="gpuKernels">
+<bin file="myKernel.cu" name="myKernel">
   <use name="cuda"/>
   <flags CUDA_FLAGS="-g -DGPU_DEBUG -DONE_KERNEL"/>
   <flags CXXFLAGS="-g"/>
 </bin>
-
 
 <library file="TTProdNew.cc" name="TTProdNew">
 
@@ -37,33 +36,33 @@
     <flags EDM_PLUGIN="1"/>
 
 </library>
+<use name="HeterogeneousCore/CUDACore"/>
+<use name="FWCore/PluginManager"/>
+<use name="clhep"/>
+<use name="DataFormats/BeamSpot"/>
+<use name="DataFormats/VertexReco"/>
+<use name="FWCore/MessageLogger"/>
+<use name="TrackingTools/Records"/>
+<use name="vdt_headers"/>
+<use name="TrackingTools/TransientTrack"/>
+<use name="DataFormats/Common"/>
+<use name="DataFormats/GsfTrackReco"/>
+<use name="DataFormats/TrackReco"/>
+<use name="Geometry/CommonDetUnit" source_only="1"/>
+<use name="Geometry/Records"/>
+<use name="TrackingTools/GeomPropagators"/>
+<use name="TrackingTools/GsfTools"/>
+<use name="TrackingTools/PatternTools"/>
+<use name="TrackingTools/TrajectoryState"/>
+<use name="DataFormats/Candidate"/>
+<use name="DataFormats/ParticleFlowCandidate"/>
+<use name="DataFormats/PatCandidates"/>
+
+<library file="gpuKernel.cu" name="gpuKernel">
+    <flags EDM_PLUGIN="1"/>
+</library>
+
 
 <library file="gpuTest.cc" name="gpuTest">
-
-    <use name="cuda"/>
-    <flags CUDA_FLAGS="-g -DGPU_DEBUG -DONE_KERNEL"/>
-    <flags CXXFLAGS="-g"/>
-
-    <use name="FWCore/PluginManager"/>
-    <use name="clhep"/>
-    <use name="DataFormats/BeamSpot"/>
-    <use name="DataFormats/VertexReco"/>
-    <use name="FWCore/MessageLogger"/>
-    <use name="TrackingTools/Records"/>
-    <use name="vdt_headers"/>
-    <use name="TrackingTools/TransientTrack"/>
-    <use name="DataFormats/Common"/>
-    <use name="DataFormats/GsfTrackReco"/>
-    <use name="DataFormats/TrackReco"/>
-    <use name="Geometry/CommonDetUnit" source_only="1"/>
-    <use name="Geometry/Records"/>
-    <use name="TrackingTools/GeomPropagators"/>
-    <use name="TrackingTools/GsfTools"/>
-    <use name="TrackingTools/PatternTools"/>
-    <use name="TrackingTools/TrajectoryState"/>
-    <use name="DataFormats/Candidate"/>
-    <use name="DataFormats/ParticleFlowCandidate"/>
-    <use name="DataFormats/PatCandidates"/>
     <flags EDM_PLUGIN="1"/>
-
 </library>

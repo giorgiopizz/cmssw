@@ -4,10 +4,17 @@
 #include <random>
 #include <vector>
 
+
+#include <cstddef>
+#include <cstdint>
+#include "TrackingTools/TransientTrack/interface/TransientTrack.h"
+/*
 #include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/requireDevices.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/launch.h"
-// #include "TrackingTools/TransientTrack/interface/TransientTrack.h"
+*/
+
+
 /*
 struct Event {
   std::vector<float> zvert;
@@ -21,14 +28,6 @@ struct Event {
 //__device__ void kernel1(
 */
 /*
-struct track_t {
-    double z;                        // z-coordinate at point of closest approach to the beamline
-    double dz2;                      // square of the error of z(pca)
-    const reco::TransientTrack *tt;  // a pointer to the Transient Track
-    double Z;                        // Z[i] for DA clustering
-    double pi;                       // track weight
-};
-
 
 struct vertex_t {
     double z;   //           z coordinate
@@ -58,9 +57,6 @@ struct Event {
 
 
 
-#define N   1024
-#define RADIUS 3
-#define BLOCK_SIZE 16
 
 /*
 vector<track_t> fill(const const vector<reco::TransientTrack>& tracks) const {
@@ -93,24 +89,51 @@ vector<track_t> fill(const const vector<reco::TransientTrack>& tracks) const {
 
 */
 
-namespace gpuKernel{
 
-    void fill_ints(int * x, int n){
-            std::fill_n(x, n, 1);
-    }
-    void doSomething(){
-        std::cout << "ciao" << std::endl;
-    }
+namespace gpuKernel{
+    
+    static constexpr int32_t MAXTRACKS = 1000;
+
+    struct track_SoA {
+        double z[MAXTRACKS];                        // z-coordinate at point of closest approach to the beamline
+        double dz2[MAXTRACKS];                      // square of the error of z(pca)
+        //const reco::TransientTrack *tt;  // a pointer to the Transient Track
+        double Z[MAXTRACKS];                        // Z[i] for DA clustering
+        double pi[MAXTRACKS];                       // track weight
+    };
 
     class Producer{
     public:
         Producer() {}
         ~Producer() = default;
     
+        void makeAsync(cudaStream_t stream, track_SoA tks_SoA) const;
+        /*
         void makeAsync(cudaStream_t stream, std::vector<reco::TransientTrack> t_tks) const{
-           std::cout << "Ciao" << std::endl;         
-        }
+            std::cout << "Ciao" << std::endl;         
 
+            int *in, * out;
+            int *d_in, *d_out;
+            int size = (N+2*RADIUS) * sizeof(int);
+            
+            in = (int * ) malloc(size); gpuKernel::fill_ints(in, N+ 2*RADIUS);
+            out = (int *) malloc(size); gpuKernel::fill_ints(out, N+ 2*RADIUS);
+            
+            cudaMalloc((void **) &d_in, size);
+            cudaMalloc((void **) &d_out, size);
+            
+            cudaMemcpy(d_in, in, size, cudaMemcpyHostToDevice);
+            cudaMemcpy(d_out, out, size, cudaMemcpyHostToDevice);
+
+            gpuKernel::myKernel<<<N/BLOCK_SIZE, BLOCK_SIZE>>>(d_in + RADIUS, d_out + RADIUS);
+
+            cudaMemcpy(out, d_out,size, cudaMemcpyDeviceToHost);
+            
+            free(in); free(out);
+            cudaFree(d_in); cudaFree(d_out);
+            
+        }
+        */
     };
 
 }
