@@ -52,7 +52,7 @@
 
 #include "HeterogeneousCore/CUDACore/interface/ScopedContext.h"
 
-#include "gpuKernel.h"
+#include "gpuKernel.cu"
 
 //
 // class declaration
