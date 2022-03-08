@@ -91,6 +91,7 @@ TTProd::TTProd(const edm::ParameterSet& iConfig) : ttkToken_(esConsumes(edm::ESI
     trkToken = consumes<reco::TrackCollection>(iConfig.getParameter<edm::InputTag>("TrackLabel"));
     bsToken = consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpotLabel"));
   //register your products
+  produces<std::vector<reco::TransientTrack>>("TransientTrack");
 /* Examples
   produces<ExampleData2>();
 
@@ -136,8 +137,8 @@ void TTProd::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
   const auto& theB = &iSetup.getData(ttkToken_);
   std::vector<reco::TransientTrack> t_tks;
 
-    t_tks = (*theB).build(tks, beamSpot);
-    /*
+  t_tks = (*theB).build(tks, beamSpot);
+  /*
     edm::LogPrint("TrackerTrackBuilderTest")
         << " Asking for the TransientTrackBuilder with name TransientTrackBuilder\n";
     //const TransientTrackBuilder* theB = &iSetup.getData(ttkToken_);
@@ -145,9 +146,13 @@ void TTProd::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     edm::LogPrint("TrackerTrackBuilderTest") << " Got a " << typeid(*theB).name() << endl;
     edm::LogPrint("TrackerTrackBuilderTest")
         << "Field at origin (in Testla): " << (*theB).field()->inTesla(GlobalPoint(0., 0., 0.)) << endl;
-    */
+  */
+
   // insert transient track in event
-  iEvent.put(t_tks, "TransientTracks");
+  //
+  auto result = std::make_unique<std::vector<reco::TransientTrack>>();
+  result->push_back(t_tks.at(0));
+  iEvent.put(std::move(result), "TransientTrack");
 /* This is an event example
   //Read 'ExampleData' from the Event
   ExampleData const& in = iEvent.get(inToken_);
