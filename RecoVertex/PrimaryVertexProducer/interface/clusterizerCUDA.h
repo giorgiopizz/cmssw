@@ -33,6 +33,9 @@ namespace clusterizerCUDA {
 
 
   __device__ __forceinline__ void update(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices, clusterParameters params, double* osumtkwt, double* beta, double rho0, bool updateTc){
+    
+//    clock_t start = clock();
+
     // printf("Update start:\n");
     size_t firstElement = threadIdx.x + blockIdx.x * blockDim.x; // This is going to be the track index
     size_t gridSize = blockDim.x * gridDim.x;
@@ -47,7 +50,8 @@ namespace clusterizerCUDA {
       // printf("iTrack: %i:\n", itrack);
 
       if (not(tracks->isGood(itrack))) continue;
-      for (unsigned int ivertexO = 0 ; ivertexO < vertices->nTrueVertex ; ++ivertexO){ //Only init over really existing ones
+      //for (unsigned int ivertexO = 0 ; ivertexO < vertices->nTrueVertex ; ++ivertexO){ //Only init over really existing ones
+      for (unsigned int ivertexO = tracks->kmin(itrack) ; ivertexO < tracks->kmax(itrack) ; ++ivertexO){ // ivertexO loops over ordered vertex
         unsigned int ivertex = vertices->order(ivertexO); // ivertex translates from ordered vertex to real vertex positions
         // printf("ivertex %i, ivertexo %i \n", ivertex, ivertexO);
         tracks->vert_sw(itrack)(ivertex) = 0.;
@@ -69,14 +73,23 @@ namespace clusterizerCUDA {
     __syncthreads();
  //   if (0==threadIdx.x && 0==blockIdx.x) printf("update stop 1: %i\n\n", (int) (clock() - stop));
  //   stop = clock();    
+ //   clock_t stop2;
+ //   bool done = false;
     // Now the monster thing about updating
     for (unsigned int itrack = firstElement; itrack < ntracks ; itrack += gridSize){
+ //     if (threadIdx.x == 0 && blockIdx.x == 0 && !done ){
+ //       stop2 = clock();
+ //     }
       // First, update vertex stuff
       if (not(tracks->isGood(itrack))) continue;
       double botrack_dz2 = -(*beta) * tracks->dz2(itrack);
       tracks->sum_Z(itrack) = Z_init;
       // First, let's get the partition function per track
       // printf("Track %i, kmin %i, kmax %i\n", itrack, tracks->kmin(itrack), tracks->kmax(itrack));
+ //       if (threadIdx.x == 0 && blockIdx.x == 0 && !done ){
+ //         printf("update stop 2.a: %i\n\n", (int) (clock()-stop2));
+ //        stop2 = clock();
+ //       }
       for (unsigned int ivertexO = tracks->kmin(itrack) ; ivertexO < tracks->kmax(itrack) ; ++ivertexO){ // ivertexO loops over ordered vertex
         unsigned int ivertex = vertices->order(ivertexO); // ivertex translates from ordered vertex to real vertex positions
         double mult_res = tracks->z(itrack) - vertices->z(ivertex);
@@ -85,6 +98,10 @@ namespace clusterizerCUDA {
         tracks->vert_exp(itrack)(ivertex)    = exp(tracks->vert_exparg(itrack)(ivertex)); // exp is defined as device function in cuda
         tracks->sum_Z(itrack) += vertices->rho(ivertex)*tracks->vert_exp(itrack)(ivertex);
       }
+ //       if (threadIdx.x == 0 && blockIdx.x == 0 && !done ){
+ //         printf("update stop 2.b: %i\n\n", (int) (clock()-stop2));
+ //         stop2 = clock();
+ //       }
       if(not(std::isfinite(tracks->sum_Z(itrack)))) tracks->sum_Z(itrack) = 0; // Just in case something diverges
       if(tracks->sum_Z(itrack) > 0){ // If partition > 0, then it is non-trivially assigned to a vertex and we need to compute stuff
         double sumw = tracks->weight(itrack)/tracks->sum_Z(itrack);
@@ -98,6 +115,11 @@ namespace clusterizerCUDA {
           
         }
       }
+ //       if (threadIdx.x == 0 && blockIdx.x == 0 && !done ){
+ //         printf("update stop 2.c: %i\n\n", (int) (clock()-stop2));
+ //         done = true;
+ //         stop2 = clock();
+ //       }
     }
     __syncthreads(); // Need to synchronize, as now we have to add across vertexes
  //   if (threadIdx.x == 0 && blockIdx.x == 0)  printf("update stop 2: %i\n\n", (int) (clock()-stop));
@@ -114,14 +136,14 @@ namespace clusterizerCUDA {
     
       for (unsigned int itrack = firstElement ; itrack < ntracks ; itrack+=gridSize){ //skip 0, as that is already in place
         if (not(tracks->isGood(itrack))) continue;
-        for (unsigned int ivertexO = 0; ivertexO < vertices->nTrueVertex; ivertexO++){
+        for (unsigned int ivertexO = tracks->kmin(itrack); ivertexO < tracks->kmax(itrack); ivertexO++){
           unsigned int ivertex    = vertices->order(ivertexO); // ivertex translates from ordered vertex to real vertex positions
         atomicAdd(&vertices->se(ivertex), tracks->vert_se(itrack)(ivertex));
         atomicAdd(&vertices->sw(ivertex) , tracks->vert_sw(itrack)(ivertex));
         atomicAdd(&vertices->swz(ivertex) , tracks->vert_swz(itrack)(ivertex));
         if (updateTc) atomicAdd(&vertices->swE(ivertex) , tracks->vert_swE(itrack)(ivertex));
       }
-      }
+    }
       __syncthreads();
     for (unsigned int ivertexO = firstElement; ivertexO < vertices->nTrueVertex; ivertexO+=gridSize){
           unsigned int ivertex    = vertices->order(ivertexO); // ivertex translates from ordered vertex to real vertex positions
@@ -138,10 +160,15 @@ namespace clusterizerCUDA {
  //   if (0==threadIdx.x && 0==blockIdx.x) printf("update stop 3: %i\n\n", (int) (clock() - stop));
  //   stop = clock();    
  //   if (0==threadIdx.x && 0==blockIdx.x) printf("update total: %i\n\n", (int) (stop - start));
-    __syncthreads(); //Just to be extremely careful
+ //     __syncthreads(); 
+ //   if (threadIdx.x == 0 && blockIdx.x == 0) printf("Update function time: %i\n\n\n", (int) (clock()-start));
+ //   __syncthreads();
   }
 
   __device__ __forceinline__ void set_vtx_range(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices, clusterParameters params, double* osumtkwt, double* beta){
+
+ //   clock_t start = clock();
+
     size_t firstElement = threadIdx.x + blockIdx.x * blockDim.x; // set_vtx_range is parallelized on tracks
     size_t gridSize = blockDim.x * gridDim.x;
     double zrange_min_= 0.1; //TODO:: put it as a param, currently hard coded as in CPU
@@ -193,9 +220,15 @@ namespace clusterizerCUDA {
       // printf("%i vtx_range is finished\n", threadIdx.x);
     }
     // printf("%i device vtx_range is finished\n", threadIdx.x);
+      __syncthreads(); 
+ //   if (threadIdx.x == 0 && blockIdx.x == 0) printf("Set vtx range function time: %i\n\n\n", (int) (clock()-start));
+//    __syncthreads();
   }
 
    __device__ __forceinline__ void thermalize(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices, clusterParameters params, double * osumtkwt, double* beta, double delta_max0, double rho0){
+
+//    clock_t start = clock();
+
     // We are going to be doing the same operations on all threads here
     size_t gridSize = blockDim.x * gridDim.x;
     int niter    = 0;
@@ -216,12 +249,17 @@ namespace clusterizerCUDA {
     ////////// if (threadIdx.x == 0 && blockIdx.x == 0) printf("vtx_range done\n"); 
     // Accumulator of variations
     double delta_sum_range = 0;
- 
+//    clock_t stop;
     while (niter++ < maxIterations_){
+ //     stop = clock(); 
       // if (threadIdx.x == 0 && blockIdx.x == 0) printf("-----Iter %i start\n", niter);
       update(ntracks, tracks, vertices, params, osumtkwt, beta, rho0, false); // Thermalizing never updates the critical T
       __syncthreads();
       ////////// if (threadIdx.x == 0 && blockIdx.x == 0) printf("--------Update done\n");
+      
+ //     if (threadIdx.x == 0 && blockIdx.x == 0) printf("Thermalize loop 1 time: %i\n\n\n", (int) (clock()-stop));
+ //     stop = clock();
+ //     __syncthreads();
 
       // At this stage, we have the delta per vertex in vertices->aux1
       double dmax = 0;
@@ -230,9 +268,12 @@ namespace clusterizerCUDA {
         if (vertices->aux1(ivertex) >= dmax) dmax = vertices->aux1(ivertex);
       }
       delta_sum_range += dmax;
-      __syncthreads();
+ //     __syncthreads();
+ //       if (threadIdx.x == 0 && blockIdx.x == 0) printf("Thermalize loop 2 time: %i\n\n\n", (int) (clock()-stop));
+ //       stop = clock();
+        __syncthreads();
       ////////// if (threadIdx.x == 0 && blockIdx.x == 0) printf("--------Max delta done\n");
-      if (delta_sum_range > zrange_min_) { // Check if any vertex moved a lot
+      if (delta_sum_range > zrange_min_ && dmax > zrange_min_) { // Check if any vertex moved a lot
         set_vtx_range(ntracks, tracks, vertices, params, osumtkwt, beta);
         delta_sum_range = 0;
       }
@@ -246,16 +287,24 @@ namespace clusterizerCUDA {
         }
       }
       */
-      __syncthreads();
+ //     __syncthreads();
+ //       if (threadIdx.x == 0 && blockIdx.x == 0) printf("Thermalize loop 3 time: %i\n\nIteration %i done\n", (int) (clock()-stop), niter);
+ //       stop = clock();
+        __syncthreads();
       if (dmax < delta_max){ // at the end delta_max acts as a delta_min, below which we break the loop
         break;
       }
       ////////// if (threadIdx.x == 0 && blockIdx.x == 0) printf("--------Iter done\n");
     }
-    __syncthreads();
+      __syncthreads(); 
+ //   if (threadIdx.x == 0 && blockIdx.x == 0) printf("Termalize function time: %i\n\n\n", (int) (clock()-start));
+ //   __syncthreads();
   }
 
   __device__ __forceinline__ void merge(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices, clusterParameters params, double * osumtkwt, double* beta){
+
+ //   clock_t start = clock();
+    
     size_t firstElement = threadIdx.x + blockIdx.x * blockDim.x; // This is going to be the vertex index
     size_t gridSize = blockDim.x * gridDim.x;
     unsigned int nvprev = vertices->nTrueVertex; 
@@ -334,17 +383,24 @@ namespace clusterizerCUDA {
       __syncthreads();
       set_vtx_range(ntracks, tracks, vertices, params, osumtkwt, beta);
       __syncthreads(); 
+ //   if (threadIdx.x == 0 && blockIdx.x == 0) printf("Merge function time: %i\n\n\n", (int) (clock()-start));
+ //   __syncthreads();
     }
   
 
   __device__ __forceinline__ void split(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices, clusterParameters params, double * osumtkwt, double* beta, double threshold){
+
+ //   clock_t start = clock();
+
     size_t firstElement = threadIdx.x + blockIdx.x * blockDim.x; // This is going to be the vertex index
     size_t gridSize = blockDim.x * gridDim.x;
     update(ntracks, tracks, vertices, params, osumtkwt, beta, 0.0, true); 
 
+    __syncthreads();
     double epsilon = 1e-3; //Minimum size for split
     unsigned int nvprev = vertices->nTrueVertex;
     
+    __syncthreads();
     // First, get Tc per vertex
     for (unsigned int ivertexO = firstElement; ivertexO < nvprev; ivertexO+=gridSize){
       unsigned int ivertex     = vertices->order(ivertexO);
@@ -586,12 +642,16 @@ namespace clusterizerCUDA {
         ////////// printf("Vertex created\n");
       }
     }
-   // __syncthreads();
+    __syncthreads();
+ //   if (threadIdx.x == 0 && blockIdx.x == 0) printf("Split function time: %i\n\n\n", (int) (clock()-start));
+ //   __syncthreads();
   }
-
 
   __device__ __forceinline__ void purge(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices, clusterParameters params, double * osumtkwt, double* beta, double rho0){
     // If only one vertex, there is nothing to purge
+    
+ //   clock_t start = clock();
+
     if (vertices->nTrueVertex < 2) return;
     constexpr double eps = 1.e-100;
     constexpr int nunique_min = 2; // Hardcoded as in the CPU version. Why?
@@ -602,22 +662,32 @@ namespace clusterizerCUDA {
     // First, set up the track-vertex assignments again
     set_vtx_range(ntracks, tracks, vertices, params, osumtkwt, beta); // TODO::Probably want to cleanup the input a bit
     __syncthreads();
+    for (unsigned int ivertexO = firstElement; ivertexO < nvprev; ivertexO+=gridSize){
+        unsigned int ivertex = vertices->order(ivertexO);
+        vertices->aux1(ivertex) = 0; //psump
+        vertices->aux2(ivertex) = 0; //pnUnique
+    }
+    __syncthreads();
     for (unsigned int itrack = firstElement; itrack < ntracks; itrack +=gridSize){
       if (not(tracks->isGood(itrack))) continue;
-      tracks->aux1(itrack) = ((tracks->sum_Z(itrack) > eps) && (tracks->weight(itrack) > params.uniquetrkminp)) ? 1. / tracks->sum_Z(itrack) : 0.; //invZ
+      //tracks->aux1(itrack) = ((tracks->sum_Z(itrack) > eps) && (tracks->weight(itrack) > params.uniquetrkminp)) ? 1. / tracks->sum_Z(itrack) : 0.; //invZ
+      double track_aux1 = ((tracks->sum_Z(itrack) > eps) && (tracks->weight(itrack) > params.uniquetrkminp)) ? 1. / tracks->sum_Z(itrack) : 0.; //invZ
       // WARNING: REUSING  matrices from tracks, but no relation to this quantities whatsoever
       // TODO::Make this more explicit somehow?
-      for (unsigned int ivertexO = 0 ; ivertexO < nvprev; ivertexO++){
-        unsigned int ivertex = vertices->order(ivertexO);
-        if (ivertexO >= tracks->kmin(itrack) && ivertexO < tracks->kmax(itrack)){
-          tracks->vert_exp(itrack)(ivertex) = exp(-(*beta)*tracks->dz2(itrack) * ( (tracks->z(itrack)-vertices->z(ivertex))*(tracks->z(itrack)-vertices->z(ivertex)) )); // TODO: either this or std::pow?
-        }
-        else{
-          tracks->vert_exp(itrack)(ivertex) = 0;
-        }
+      for (unsigned int ivertexO = tracks->kmin(itrack) ; ivertexO < tracks->kmax(itrack) ; ivertexO++){
+            unsigned int ivertex = vertices->order(ivertexO);
+            double ppcut = params.uniquetrkweight * vertices->rho(ivertex) / (vertices->rho(ivertex)+rhoconst); 
+            double track_vertex_aux1 = exp(-(*beta)*tracks->dz2(itrack) * ( (tracks->z(itrack)-vertices->z(ivertex))*(tracks->z(itrack)-vertices->z(ivertex)) )); // TODO: either this or std::pow?
+            double p = vertices->rho(ivertex)*track_vertex_aux1*track_aux1;
+            atomicAdd(&vertices->aux1(ivertex) , p); //psump
+            if (p>ppcut) {
+             atomicAdd(&vertices->aux2(ivertex) , 1);
+            }
+            // atomicAdd(&vertices->aux2(ivertex) , (p > ppcut) ? 1 : 0); //pnUique
       }
     }
     __syncthreads();
+    /*
     for (unsigned int ivertexO = firstElement ; ivertexO < nvprev;  ivertexO += gridSize){
       unsigned int ivertex = vertices->order(ivertexO);
       double ppcut = params.uniquetrkweight * vertices->rho(ivertex) / (vertices->rho(ivertex)+rhoconst); 
@@ -630,38 +700,57 @@ namespace clusterizerCUDA {
         vertices->aux2(ivertex) += (p > ppcut) ? 1 : 0; //pnUique
       }
     }
+    */
+    /*
+    for (unsigned int itrack = firstElement; itrack < ntracks; itrack+=gridSize){
+        if (not(tracks->isGood(itrack))) continue;
+        for (unsigned int ivertexO = 0 ; ivertexO < nvprev;  ivertexO ++){
+            unsigned int ivertex = vertices->order(ivertexO);
+            double ppcut = params.uniquetrkweight * vertices->rho(ivertex) / (vertices->rho(ivertex)+rhoconst); 
+            double p = vertices->rho(ivertex)*tracks->vert_exp(itrack)(ivertex)*tracks->aux1(itrack);
+            atomicAdd(&vertices->aux1(ivertex) , p); //psump
+            atomicAdd(&vertices->aux2(ivertex) , (p > ppcut) ? 1 : 0); //pnUique
+        }
+    }
+    
     __syncthreads();
-    if (0==threadIdx.x && 0==blockIdx.x){
-      double sumpmin  = ntracks;
-      unsigned int k0 = nvprev;
-      for (unsigned int ivertexO = 0; ivertexO < nvprev ; ivertexO++){
-        unsigned int ivertex = vertices->order(ivertexO);
-        if ((vertices->aux2(ivertex) < nunique_min) && (vertices->aux1(ivertex) < sumpmin)){
-          // Will purge the worst one
-          sumpmin = vertices->aux1(ivertex);
-          k0 = ivertexO;
-        }
+    */
+    double sumpmin  = ntracks;
+    unsigned int k0 = nvprev;
+    for (unsigned int ivertexO = 0; ivertexO < nvprev ; ivertexO++){
+      unsigned int ivertex = vertices->order(ivertexO);
+      if ((vertices->aux2(ivertex) < nunique_min) && (vertices->aux1(ivertex) < sumpmin)){
+        // Will purge the worst one
+        sumpmin = vertices->aux1(ivertex);
+        k0 = ivertexO;
       }
-      if (k0 != nvprev){
-        for (unsigned int ivertexOO = 0; ivertexOO < nvprev - 1; ++ivertexOO){ // TODO:: Any tricks here?
-          if (ivertexOO >= k0){ //As we copy from the next, we go forward in ivertex 
-            vertices->order(ivertexOO) =vertices->order(ivertexOO+1);
-          }
+    }
+    if (k0 != nvprev){
+        __syncthreads();
+        if (0==threadIdx.x && 0==blockIdx.x){
+            for (unsigned int ivertexOO = 0; ivertexOO < nvprev - 1; ++ivertexOO){ // TODO:: Any tricks here?
+              if (ivertexOO >= k0){ //As we copy from the next, we go forward in ivertex 
+                vertices->order(ivertexOO) =vertices->order(ivertexOO+1);
+              }
+            }
+            vertices->nTrueVertex = vertices->nTrueVertex-1; // Also update nvertex
         }
-        vertices->nTrueVertex = vertices->nTrueVertex-1; // Also update nvertex
+        __syncthreads();
         for (unsigned int itrack = firstElement; itrack < ntracks ; itrack += gridSize){
           if (not tracks->isGood(itrack)) continue;
           if (tracks->kmax(itrack) > k0) tracks->kmax(itrack)--;
           if ((tracks->kmin(itrack) > k0) || ((tracks->kmax(itrack) < (tracks->kmin(itrack) + 1)) && (tracks->kmin(itrack) > 0))) tracks->kmin(itrack)--;
         }
       }
-    }
     __syncthreads();
     if (nvprev != vertices->nTrueVertex){
       set_vtx_range(ntracks, tracks, vertices, params, osumtkwt, beta);
     }
-    __syncthreads();
    
+    __syncthreads();
+ //   if (threadIdx.x == 0 && blockIdx.x == 0) printf("Purge function time: %i\n\n\n", (int) (clock()-start));
+ //   __syncthreads();
+
   } 
   __device__ __forceinline__ void checkOrder (int n, TrackForPV::VertexForPVSoA* vertices){
   if (threadIdx.x == 0 && blockIdx.x == 0){

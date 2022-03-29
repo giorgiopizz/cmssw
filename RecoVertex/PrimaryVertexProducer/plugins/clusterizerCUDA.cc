@@ -204,6 +204,7 @@ __global__ void resplitTracksKernel(unsigned int ntracks, TrackForPV::TrackForPV
     __syncthreads();
     // We might need to merge afterwards!
     nprev = vertices->nTrueVertex;
+    __syncthreads();
     merge(ntracks, tracks, vertices, params, osumtkwt, beta);
     __syncthreads();
     while (nprev !=  vertices->nTrueVertex) {
@@ -227,12 +228,14 @@ __global__ void outlierRejectionKernel(unsigned int ntracks, TrackForPV::TrackFo
     rho0 = vertices->nTrueVertex > 1 ? 1./vertices->nTrueVertex : 1.;
     for (unsigned int a = 0; a < 5 ; a++){ //Can't be parallelized in any reasonable way
       update(ntracks, tracks, vertices, params, osumtkwt, beta, a*rho0/5., false);
+      __syncthreads();
     }
   }
   thermalize(ntracks, tracks, vertices, params, osumtkwt, beta, params.delta_lowT, rho0); // If we don't do outlier rejection, we just thermalize afther the resplitting step at either rho0=0 or rho0 = 1/nv
   __syncthreads();
   // With outlier rejection we might lose tracks in some vertices, so merge again
   unsigned int nprev = vertices->nTrueVertex;
+  __syncthreads();
   merge(ntracks, tracks, vertices, params, osumtkwt, beta);
   __syncthreads();
   while (nprev !=  vertices->nTrueVertex) {
@@ -241,6 +244,7 @@ __global__ void outlierRejectionKernel(unsigned int ntracks, TrackForPV::TrackFo
     update(ntracks, tracks, vertices, params, osumtkwt, beta, rho0, false); // Now at the proper rho0! This changes Z_init and so the whole partition function for tracks
     __syncthreads();
     nprev = vertices->nTrueVertex;
+    __syncthreads();
     merge(ntracks, tracks, vertices, params, osumtkwt, beta);
     __syncthreads();
   }
@@ -248,6 +252,7 @@ __global__ void outlierRejectionKernel(unsigned int ntracks, TrackForPV::TrackFo
   double betapurge = 1./params.Tpurge;
   while ((*beta) < betapurge){
     if (0==threadIdx.x && 0 == blockIdx.x)  (*beta) = std::min((*beta)/params.coolingFactor, betapurge);
+    __syncthreads();
     thermalize(ntracks, tracks, vertices, params, osumtkwt, beta, params.delta_lowT, rho0);
     __syncthreads();
   }
@@ -259,6 +264,7 @@ __global__ void outlierRejectionKernel(unsigned int ntracks, TrackForPV::TrackFo
     thermalize(ntracks, tracks, vertices, params, osumtkwt, beta, params.delta_lowT, rho0);
     __syncthreads();
     nprev = vertices->nTrueVertex;
+    __syncthreads();
     purge(ntracks, tracks, vertices, params, osumtkwt, beta, rho0);
   }
 
@@ -266,10 +272,12 @@ __global__ void outlierRejectionKernel(unsigned int ntracks, TrackForPV::TrackFo
   double betastop = 1./params.Tstop;
   while ((*beta) < betastop){
     if (0==threadIdx.x && 0 == blockIdx.x) (*beta) = std::min((*beta)/params.coolingFactor, betastop);
+    __syncthreads();
     thermalize(ntracks, tracks, vertices, params, osumtkwt, beta, params.delta_lowT, rho0);
     __syncthreads();
   }
   // A final assignment, before sending it to the fitter
+  __syncthreads();
   set_vtx_range(ntracks, tracks, vertices, params, osumtkwt, beta);
 }
 
