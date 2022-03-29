@@ -40,7 +40,8 @@ namespace clusterizerCUDA {
     // printf("Temps set\n");
 
     //D if (0==threadIdx.x && 0 == blockIdx.x) printf("Update running, nt=%i, nv=%i, Zinit=%1.6f, rho0=%1.6f, updateTc=%i\n", ntracks, vertices->nTrueVertex, Z_init, rho0, updateTc);
-
+//    clock_t start = clock();
+ //   clock_t stop = clock();
     // Initiliaze stuff to 0
     for (unsigned int itrack = firstElement; itrack < ntracks ; itrack += gridSize){
       // printf("iTrack: %i:\n", itrack);
@@ -66,7 +67,8 @@ namespace clusterizerCUDA {
     //D if (0==threadIdx.x && 0==blockIdx.x) printf("Params for first vertex, before update, se=%1.10f, sw=%1.10f, swz=%1.10f, swE=%1.10f, z=%1.10f, rho=%1.10f\n", vertices->se(0), vertices->sw(0), vertices->swz(0), vertices->swE(0), vertices->z(0), vertices->rho(0));
     // printf("Everything at 0\n");
     __syncthreads();
-    
+ //   if (0==threadIdx.x && 0==blockIdx.x) printf("update stop 1: %i\n\n", (int) (clock() - stop));
+ //   stop = clock();    
     // Now the monster thing about updating
     for (unsigned int itrack = firstElement; itrack < ntracks ; itrack += gridSize){
       // First, update vertex stuff
@@ -98,6 +100,8 @@ namespace clusterizerCUDA {
       }
     }
     __syncthreads(); // Need to synchronize, as now we have to add across vertexes
+ //   if (threadIdx.x == 0 && blockIdx.x == 0)  printf("update stop 2: %i\n\n", (int) (clock()-stop));
+ //   stop = clock();
     for (unsigned int ivertexO = firstElement; ivertexO < vertices->nTrueVertex; ivertexO+=gridSize){
       unsigned int ivertex    = vertices->order(ivertexO); // ivertex translates from ordered vertex to real vertex positions
       vertices->se(ivertex)   = 0.;
@@ -105,14 +109,22 @@ namespace clusterizerCUDA {
       vertices->swz(ivertex)  = 0.;
       vertices->aux1(ivertex) = 0.; // Aux here is delta, the position variation in this update loop
       if (updateTc) vertices->swE(ivertex) = 0.;
-
-      for (unsigned int itrack = 0 ; itrack < ntracks ; ++itrack){ //skip 0, as that is already in place
+    }
+    __syncthreads(); //Just to be extremely careful
+    
+      for (unsigned int itrack = firstElement ; itrack < ntracks ; itrack+=gridSize){ //skip 0, as that is already in place
         if (not(tracks->isGood(itrack))) continue;
-        vertices->se(ivertex) += tracks->vert_se(itrack)(ivertex);
-        vertices->sw(ivertex) += tracks->vert_sw(itrack)(ivertex);
-        vertices->swz(ivertex) += tracks->vert_swz(itrack)(ivertex);
-        if (updateTc) vertices->swE(ivertex) += tracks->vert_swE(itrack)(ivertex);
+        for (unsigned int ivertexO = 0; ivertexO < vertices->nTrueVertex; ivertexO++){
+          unsigned int ivertex    = vertices->order(ivertexO); // ivertex translates from ordered vertex to real vertex positions
+        atomicAdd(&vertices->se(ivertex), tracks->vert_se(itrack)(ivertex));
+        atomicAdd(&vertices->sw(ivertex) , tracks->vert_sw(itrack)(ivertex));
+        atomicAdd(&vertices->swz(ivertex) , tracks->vert_swz(itrack)(ivertex));
+        if (updateTc) atomicAdd(&vertices->swE(ivertex) , tracks->vert_swE(itrack)(ivertex));
       }
+      }
+      __syncthreads();
+    for (unsigned int ivertexO = firstElement; ivertexO < vertices->nTrueVertex; ivertexO+=gridSize){
+          unsigned int ivertex    = vertices->order(ivertexO); // ivertex translates from ordered vertex to real vertex positions
       if (vertices->sw(ivertex) > 0){ //The vertex position is updated
         double znew    = vertices->swz(ivertex)/vertices->sw(ivertex);
         vertices->aux1(ivertex) = abs(znew-vertices->z(ivertex));
@@ -121,7 +133,11 @@ namespace clusterizerCUDA {
       vertices->rho(ivertex)    = vertices->rho(ivertex) * vertices->se(ivertex) * (*osumtkwt);  // The relative vertex weight is updated
       // if (ivertexO==0) printf("Params for first vertex, after update, se=%1.10f, sw=%1.10f, swz=%1.10f, swE=%1.10f, z=%1.10f, rho=%1.10f\n", vertices->se(ivertexO), vertices->sw(ivertexO), vertices->swz(ivertexO), vertices->swE(ivertexO), vertices->z(ivertexO), vertices->rho(ivertexO));
     }
+    __syncthreads(); //Just to be extremely careful
     // printf("Finished updating!\n");
+ //   if (0==threadIdx.x && 0==blockIdx.x) printf("update stop 3: %i\n\n", (int) (clock() - stop));
+ //   stop = clock();    
+ //   if (0==threadIdx.x && 0==blockIdx.x) printf("update total: %i\n\n", (int) (stop - start));
     __syncthreads(); //Just to be extremely careful
   }
 
@@ -181,6 +197,7 @@ namespace clusterizerCUDA {
 
    __device__ __forceinline__ void thermalize(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices, clusterParameters params, double * osumtkwt, double* beta, double delta_max0, double rho0){
     // We are going to be doing the same operations on all threads here
+    size_t gridSize = blockDim.x * gridDim.x;
     int niter    = 0;
     double  zrange_min_ = 0.01; // Hard coded and double defined as in the CPU code, sigh....
     double delta_max = params.delta_lowT;
@@ -201,7 +218,7 @@ namespace clusterizerCUDA {
     double delta_sum_range = 0;
  
     while (niter++ < maxIterations_){
-      ////////// if (threadIdx.x == 0 && blockIdx.x == 0) printf("-----Iter %i start\n", niter);
+      // if (threadIdx.x == 0 && blockIdx.x == 0) printf("-----Iter %i start\n", niter);
       update(ntracks, tracks, vertices, params, osumtkwt, beta, rho0, false); // Thermalizing never updates the critical T
       __syncthreads();
       ////////// if (threadIdx.x == 0 && blockIdx.x == 0) printf("--------Update done\n");
@@ -216,7 +233,11 @@ namespace clusterizerCUDA {
       __syncthreads();
       ////////// if (threadIdx.x == 0 && blockIdx.x == 0) printf("--------Max delta done\n");
       if (delta_sum_range > zrange_min_) { // Check if any vertex moved a lot
-        for (unsigned int ivertexO = 0 ; ivertexO < vertices->nTrueVertex; ivertexO++){ // TODO::Currently we are doing this in all threads in parallel, might be optimized using shared memory?
+        set_vtx_range(ntracks, tracks, vertices, params, osumtkwt, beta);
+        delta_sum_range = 0;
+      }
+      /*
+        for (unsigned int ivertexO = 0 ; ivertexO < vertices->nTrueVertex; ivertexO+=gridSize){ // TODO::Currently we are doing this in all threads in parallel, might be optimized using shared memory?
           unsigned int ivertex = vertices->order(ivertexO);
           if (vertices->aux1(ivertex) > zrange_min_){ // If any moved enough, redo the track-vertex range association
             ////////// if (threadIdx.x == 0 && blockIdx.x == 0) printf("--------Set vtx run for %i\n", ivertexO);
@@ -224,8 +245,9 @@ namespace clusterizerCUDA {
           }
         }
       }
+      */
       __syncthreads();
-      if (dmax < delta_max){
+      if (dmax < delta_max){ // at the end delta_max acts as a delta_min, below which we break the loop
         break;
       }
       ////////// if (threadIdx.x == 0 && blockIdx.x == 0) printf("--------Iter done\n");
@@ -264,7 +286,6 @@ namespace clusterizerCUDA {
     if (ncritical == 0) return;
     __syncthreads();
     // Yep, this is a very bogus sorting algorithm, not even quicksort, but the size of critical shouldn't be > 10
-    if (0 == threadIdx.x && 0 == blockIdx.x){ // Really no way of parallelizing this I'm afraid
       for (unsigned int sortO = 0; sortO < ncritical ; ++sortO){//This we might be able to parallelize more. TODO
         unsigned int ikO = 0;
         double minVal = 999999.;
@@ -282,6 +303,7 @@ namespace clusterizerCUDA {
         vertices->isGood(ivertex) = false; // Delete it!
         //printf("removing vertex: (%d, %d)\n",ivertexO, ivertex);
         
+        if (0 == threadIdx.x && 0 == blockIdx.x){ // Really no way of parallelizing this I'm afraid
             double rho =  vertices->rho(ivertex) + vertices->rho(ivertexnext);
             if (rho > 0){ 
               vertices->z(ivertexnext) = (vertices->rho(ivertex) * vertices->z(ivertex) + vertices->rho(ivertexnext) * vertices->z(ivertexnext)) / rho;
@@ -297,17 +319,17 @@ namespace clusterizerCUDA {
               }
             }
             vertices->nTrueVertex = vertices->nTrueVertex-1; // Also update nvertex
-            for (unsigned int resort = 0; resort < ncritical ; ++resort){
-              if (critical_index[resort] > ivertexO) critical_index[resort]--; // critical_index refers to the original vertices->order, so it needs to be updated 
-            }
-            for (unsigned int itrack = firstElement; itrack < ntracks ; itrack ++){
-              if (not tracks->isGood(itrack)) continue;
-              if (tracks->kmax(itrack) > ivertexO) tracks->kmax(itrack)--;
-              if ((tracks->kmin(itrack) > ivertexO) || ((tracks->kmax(itrack) < (tracks->kmin(itrack) + 1)) && (tracks->kmin(itrack) > 0))) tracks->kmin(itrack)--;
-            } 
         }
-
+        for (unsigned int resort = 0; resort < ncritical ; ++resort){
+          if (critical_index[resort] > ivertexO) critical_index[resort]--; // critical_index refers to the original vertices->order, so it needs to be updated 
+        }
+        for (unsigned int itrack = firstElement; itrack < ntracks ; itrack += gridSize){
+          if (not tracks->isGood(itrack)) continue;
+          if (tracks->kmax(itrack) > ivertexO) tracks->kmax(itrack)--;
+          if ((tracks->kmin(itrack) > ivertexO) || ((tracks->kmax(itrack) < (tracks->kmin(itrack) + 1)) && (tracks->kmin(itrack) > 0))) tracks->kmin(itrack)--;
+        } 
       }
+
       
       __syncthreads();
       set_vtx_range(ntracks, tracks, vertices, params, osumtkwt, beta);
@@ -336,32 +358,41 @@ namespace clusterizerCUDA {
     // Very annoyingly, we need to sort here per thread. TODO:: Can we do this with something like thrust but better? Seems we would need to atomize the kernel significantly
     // Yes, you can't create an array of non-fixed size in cuda...
     //printf("%i allocate temps\n", threadIdx.x);
-    double critical_temp[8]; // 512?
-    unsigned int critical_index[8]; // 512?
+    double critical_temp[128]; // 512?
+    unsigned int critical_index[128]; // 512?
     //printf("%i allocated\n", threadIdx.x);
 
     unsigned int ncritical = 0;
+
+//    clock_t start = clock();
+    //__shared__ double p1_v[512], z1_v[512], w1_v[512], p2_v[512], z2_v[512], w2_v[512];
+    __shared__ double p1, z1, w1, p2, z2, w2;
+
     for (unsigned int ivertexO = 0; ivertexO < nvprev  ; ivertexO++){
       unsigned int ivertex     = vertices->order(ivertexO);
-      ////////// if (threadIdx.x == 0 && blockIdx.x == 0) printf("Vertex %i Tc %1.10f beta %1.10f threshold %1.10f \n",ivertexO, vertices->aux1(ivertex), *beta, threshold);
+      ////////// if (threadIdx.x == 2 && blockIdx.x == 0) printf("Vertex %i Tc %1.10f beta %1.10f threshold %1.10f \n",ivertexO, vertices->aux1(ivertex), *beta, threshold);
       if (vertices->aux1(ivertex)*(*beta) > threshold){
         ////////// if (threadIdx.x == 0 && blockIdx.x == 0) printf("I'll split vertex %i\n",ivertexO);
         //printf("%i sees %i needs to split\n", threadIdx.x, ivertexO);
         critical_temp[ncritical]  = std::fabs(vertices->aux1(ivertex));
         critical_index[ncritical] = ivertexO;
         ncritical++;
+        if (ncritical == 128) break;
         //printf("%i sees %i splitted\n", threadIdx.x, ivertexO);
       }
     }
     __syncthreads();
+ //   clock_t stop = clock();
+ //   if (threadIdx.x == 0 && blockIdx.x == 0) printf("Split 1st loop: %i\n\n",(int) (stop-start));
     //printf("%i Verifies splitting\n", threadIdx.x);
     if (ncritical == 0) return;
     //printf("%i Splitting verified\n", threadIdx.x);
     __syncthreads();
     // Yep, this is a very bogus sorting algorithm, not even quicksort, but the size of critical shouldn't be > 10
-    if (threadIdx.x == 0 && blockIdx.x == 0){
 
       for (unsigned int sortO = 0; sortO < ncritical ; ++sortO){//This we might be able to parallelize more. TODO
+        //start = clock();
+        //stop = clock();
         unsigned int ikO = 0;
         double maxVal = -1.;
         for (unsigned int sort1 = 0; sort1 < ncritical; ++sort1){
@@ -379,9 +410,18 @@ namespace clusterizerCUDA {
         if (ivertexO > 0) ivertexprev = vertices->order(ivertexO-1);  // This will be used in a couple of computations
         if (ivertexO < nvprev -1) ivertexnext = vertices->order(ivertexO+1);  // This will be used in a couple of computations
 
-        double p1 = 0, z1 = 0, w1 = 0;
-        double p2 = 0, z2 = 0, w2 = 0;
-        for (unsigned int itrack = 0; itrack < ntracks; itrack++) {
+//        if (threadIdx.x == 0 && blockIdx.x == 0) printf("Split loop of 1.-1 event: %i\n\n",(int) (clock()-stop));
+//        stop = clock();
+        if (threadIdx.x == 0 && blockIdx.x == 0) {
+            p1 = 0;
+            z1 = 0;
+            w1 = 0;
+            p2 = 0;
+            z2 = 0;
+            w2 = 0;
+        }
+        __syncthreads();
+        for (unsigned int itrack = firstElement; itrack < ntracks; itrack+=gridSize) {
           if (not(tracks->isGood(itrack))) continue;
           if (tracks->sum_Z(itrack) > 1.e-100) {
             // winner-takes-all, usually overestimates splitting
@@ -396,87 +436,157 @@ namespace clusterizerCUDA {
             }
             double p = vertices->rho(ivertex) * tracks->weight(itrack) * exp(-(*beta) * (tracks->z(itrack)-vertices->z(ivertex))*(tracks->z(itrack)-vertices->z(ivertex))* tracks->dz2(itrack))/ tracks->sum_Z(itrack);
             double w = p * tracks->dz2(itrack);
-            p1 += p * tl;
-            z1 += w * tl * tracks->z(itrack);
-            w1 += w * tl;
-            p2 += p * tr;
-            z2 += w * tr * tracks->z(itrack);
-            w2 += w * tr;
+            atomicAdd(&p1, p*tl);
+            atomicAdd(&z1, w*tl*tracks->z(itrack));
+            atomicAdd(&w1, w*tl);
+            atomicAdd(&p2, p*tr);
+            atomicAdd(&z2, w*tr*tracks->z(itrack));
+            atomicAdd(&w2, w*tr);
           }
         }
-        if (w1 > 0) {
-          z1 = z1 / w1;
+        /*
+        for (unsigned int itrack = firstElement; itrack < ntracks; itrack+=gridSize) {
+          if (not(tracks->isGood(itrack))) continue;
+          if (tracks->sum_Z(itrack) > 1.e-100) {
+            // winner-takes-all, usually overestimates splitting
+            double tl = tracks->z(itrack) < vertices->z(ivertex) ? 1. : 0.;
+            double tr = 1. - tl;
+            // soften it, especially at low T
+            double arg = (tracks->z(itrack) - vertices->z(ivertex)) * sqrt((*beta) * tracks->dz2(itrack));
+            if (std::fabs(arg) < 20) {
+              double t = exp(-arg);
+              tl = t / (t + 1.);
+              tr = 1 / (t + 1.);
+            }
+            double p = vertices->rho(ivertex) * tracks->weight(itrack) * exp(-(*beta) * (tracks->z(itrack)-vertices->z(ivertex))*(tracks->z(itrack)-vertices->z(ivertex))* tracks->dz2(itrack))/ tracks->sum_Z(itrack);
+            double w = p * tracks->dz2(itrack);
+            if (itrack == firstElement) {
+                p1_v[firstElement] = p*tl;
+                z1_v[firstElement] =  w*tl*tracks->z(itrack);
+                w1_v[firstElement] =  w*tl;
+                p2_v[firstElement] =  p*tr;
+                z2_v[firstElement] =  w*tr*tracks->z(itrack);
+                w2_v[firstElement] =  w*tr;
+            }
+            else {
+                p1_v[firstElement] += p*tl;
+                z1_v[firstElement] +=  w*tl*tracks->z(itrack);
+                w1_v[firstElement] +=  w*tl;
+                p2_v[firstElement] +=  p*tr;
+                z2_v[firstElement] +=  w*tr*tracks->z(itrack);
+                w2_v[firstElement] +=  w*tr;
+            }
+          }
         }
-        else {
-          z1 = vertices->z(ivertex) - epsilon;
+        */
+        __syncthreads();
+        if (threadIdx.x == 0 && blockIdx.x == 0){
+            /*
+            p1 = 0;
+            z1 = 0;
+            w1 = 0;
+            p2 = 0;
+            z2 = 0;
+            w2 = 0;
+            
+            for (unsigned int i = 0; i<gridSize; i++) {
+               p1 += p1_v[i];      
+               z1 += z1_v[i];      
+               w1 += w1_v[i];      
+               p2 += p2_v[i];      
+               z2 += z2_v[i];      
+               w2 += w2_v[i];      
+            }
+            */
+            
+            //printf("Split loop of 1.0 event: %i\n\n",(int) (clock()-stop));
+            // stop = clock();
+            if (w1 > 0) {
+              z1 = z1 / w1;
+            }
+            else {
+              z1 = vertices->z(ivertex) - epsilon;
+            }
+            if (w2 > 0) {
+              z2 = z2 / w2;
+            }  
+            else {
+              z2 = vertices->z(ivertex) + epsilon;
+            }
+            // reduce split size if there is not enough room
+            if ((ivertexO > 0) && (z1 < (0.6 * vertices->z(ivertex) + 0.4 * vertices->z(ivertexprev)))) { // First in the if is ivertexO, as we care on whether the vertex is the leftmost or rightmost
+              z1 = 0.6 * vertices->z(ivertex) + 0.4 * vertices->z(ivertexprev);
+            }
+            if ((ivertexO + 1 < nvprev) && (z2 > (0.6 * vertices->z(ivertex) + 0.4 * vertices->z(ivertexnext)))) {
+              z2 = 0.6 * vertices->z(ivertex) + 0.4 * vertices->z(ivertexnext);
+            }
         }
-        if (w2 > 0) {
-          z2 = z2 / w2;
-        }  
-        else {
-          z2 = vertices->z(ivertex) + epsilon;
-        }
-        // reduce split size if there is not enough room
-        if ((ivertexO > 0) && (z1 < (0.6 * vertices->z(ivertex) + 0.4 * vertices->z(ivertexprev)))) { // First in the if is ivertexO, as we care on whether the vertex is the leftmost or rightmost
-          z1 = 0.6 * vertices->z(ivertex) + 0.4 * vertices->z(ivertexprev);
-        }
-        if ((ivertexO + 1 < nvprev) && (z2 > (0.6 * vertices->z(ivertex) + 0.4 * vertices->z(ivertexnext)))) {
-          z2 = 0.6 * vertices->z(ivertex) + 0.4 * vertices->z(ivertexnext);
-        }
+        __syncthreads();
         ////////// printf("New Z1, Z2, epsilon: %1.10f %1.10f %1.10f\n", z1, z2, epsilon);
         if (abs(z2-z1) > epsilon){
           //if (z2<=z1) printf("\n\nAttention: z2 <= z1: %f %f\n\n", z2, z1);
-          double pk1 = p1 * vertices->rho(ivertex) / (p1 + p2);
-          double pk2 = p2 * vertices->rho(ivertex) / (p1 + p2);
-          vertices->z(ivertex) = z2;
-          vertices->rho(ivertex)  = pk2;
-          // Now we need to get the first empty index to save the vertex in
-          unsigned int nnew = 999999;
-          unsigned int icheck = 0;
-          while (nnew == 999999){
-            if (not(vertices->isGood(icheck))) nnew = icheck;
-            icheck++;
-          }
-          //printf("found nnew: %d, while ntruevertices: %d\n", nnew, nvprev);
-          //nnew = vertices->order(nnew);
-          // Insert it into the first available slot           
-          vertices->z(nnew)      = z1; 
-          vertices->rho(nnew)    = pk1; 
-          // And register it as used
-          vertices->isGood(nnew) = true;
-          // TODO:: this is likely not needed as far as it is reset anytime we call update
-          vertices->sw(nnew)     = 0.;
-          vertices->se(nnew)     = 0.;
-          vertices->swz(nnew)    = 0.;
-          vertices->swE(nnew)    = 0.;
-          vertices->exp(nnew)    = 0.;
-          vertices->exparg(nnew) = 0.;
-          // This we can for sure parallelize, but we need to be careful enclosing stuff on the if threadIdx.x stuff
-          for (unsigned int itrack = 0; itrack < ntracks ; itrack++){
+          // This we can for sure parallelize, but we need to be careful enclosing stuff on the if threadIdx.x stuff 
+          for (unsigned int itrack = firstElement; itrack < ntracks ; itrack+=gridSize){
             if (not(tracks->isGood(itrack))) continue;
             if (tracks->kmin(itrack) > ivertexO) tracks->kmin(itrack)++;
             if ((tracks->kmax(itrack) >= ivertexO) || (tracks->kmax(itrack) == tracks->kmin(itrack))) tracks->kmax(itrack)++;
           }
-          for (unsigned int ivnew = nvprev ; ivnew > ivertexO ; ivnew--){ // As we add a vertex, we update from the back downwards
+          if (threadIdx.x == 0 && blockIdx.x == 0){
+              //printf("Split loop of 1b event: %i\n\n",(int) (clock()-stop));
+              //stop = clock();
 
-            ////////// printf("I'm changing order %i for %i at %i\n", vertices->order(ivnew), vertices->order(ivnew-1), ivnew);
-            vertices->order(ivnew) = vertices->order(ivnew-1);
+              double pk1 = p1 * vertices->rho(ivertex) / (p1 + p2);
+              double pk2 = p2 * vertices->rho(ivertex) / (p1 + p2);
+              vertices->z(ivertex) = z2;
+              vertices->rho(ivertex)  = pk2;
+              // Now we need to get the first empty index to save the vertex in
+              unsigned int nnew = 999999;
+              unsigned int icheck = 0;
+              while (nnew == 999999){
+                if (not(vertices->isGood(icheck))) nnew = icheck;
+                icheck++;
+              }
+              //printf("found nnew: %d, while ntruevertices: %d\n", nnew, nvprev);
+              //nnew = vertices->order(nnew);
+              // Insert it into the first available slot           
+              vertices->z(nnew)      = z1; 
+              vertices->rho(nnew)    = pk1; 
+              // And register it as used
+              vertices->isGood(nnew) = true;
+              // TODO:: this is likely not needed as far as it is reset anytime we call update
+              vertices->sw(nnew)     = 0.;
+              vertices->se(nnew)     = 0.;
+              vertices->swz(nnew)    = 0.;
+              vertices->swE(nnew)    = 0.;
+              vertices->exp(nnew)    = 0.;
+              vertices->exparg(nnew) = 0.;
+              //printf("Split loop of 1a event: %i\n\n",(int) (clock()-stop));
+              //stop = clock();
+              for (unsigned int ivnew = nvprev ; ivnew > ivertexO ; ivnew--){ // As we add a vertex, we update from the back downwards
 
+                ////////// printf("I'm changing order %i for %i at %i\n", vertices->order(ivnew), vertices->order(ivnew-1), ivnew);
+                vertices->order(ivnew) = vertices->order(ivnew-1);
+
+              }
+              //printf("Split loop of 1c event: %i\n\n",(int) (clock()-stop));
+              //stop = clock();
+              // And then the new vertex will be at the old split one position
+              ////////// printf("I'm adding %i at %i\n", nnew, ivertexO);
+              vertices->order(ivertexO) = nnew;
+              vertices->nTrueVertex++; // Add one to the count of real vertex
+              //stop = clock();
+              //printf("Split loop of 1 event: %i\n\n",(int) (stop-start));
           }
-          // And then the new vertex will be at the old split one position
-          ////////// printf("I'm adding %i at %i\n", nnew, ivertexO);
-          vertices->order(ivertexO) = nnew;
-          vertices->nTrueVertex++; // Add one to the count of real vertex
+          __syncthreads();
           nvprev++; // And to the counter of previous vertices
           // However, the original list of vertices to be split is going to refer to the old vertices_order vector, so we need to add some shenanigans
           for (unsigned int resort = 0; resort < ncritical ; ++resort){
             if (critical_index[resort] > ivertexO) critical_index[resort]++; // critical_index refers to the original vertices->order, so it needs to be updated 
           }
-        }
         ////////// printf("Vertex created\n");
       }
     }
-    __syncthreads();
+   // __syncthreads();
   }
 
 
