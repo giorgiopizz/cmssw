@@ -43,8 +43,8 @@ namespace clusterizerCUDA {
     // printf("Temps set\n");
 
     //D if (0==threadIdx.x && 0 == blockIdx.x) printf("Update running, nt=%i, nv=%i, Zinit=%1.6f, rho0=%1.6f, updateTc=%i\n", ntracks, vertices->nTrueVertex, Z_init, rho0, updateTc);
-//    clock_t start = clock();
- //   clock_t stop = clock();
+    clock_t start = clock();
+    clock_t stop = clock();
     // Initiliaze stuff to 0
     for (unsigned int itrack = firstElement; itrack < ntracks ; itrack += gridSize){
       // printf("iTrack: %i:\n", itrack);
@@ -68,28 +68,26 @@ namespace clusterizerCUDA {
         // printf("--exparg \n");
       }
     }
-    //D if (0==threadIdx.x && 0==blockIdx.x) printf("Params for first vertex, before update, se=%1.10f, sw=%1.10f, swz=%1.10f, swE=%1.10f, z=%1.10f, rho=%1.10f\n", vertices->se(0), vertices->sw(0), vertices->swz(0), vertices->swE(0), vertices->z(0), vertices->rho(0));
-    // printf("Everything at 0\n");
     __syncthreads();
- //   if (0==threadIdx.x && 0==blockIdx.x) printf("update stop 1: %i\n\n", (int) (clock() - stop));
- //   stop = clock();    
- //   clock_t stop2;
- //   bool done = false;
+    if (0==threadIdx.x && 0==blockIdx.x) printf("update stop 1: %i\n\n", (int) (clock() - stop));
+    stop = clock();    
+    clock_t stop2;
+    bool done = false;
     // Now the monster thing about updating
     for (unsigned int itrack = firstElement; itrack < ntracks ; itrack += gridSize){
- //     if (threadIdx.x == 0 && blockIdx.x == 0 && !done ){
- //       stop2 = clock();
- //     }
+      if (threadIdx.x == 0 && blockIdx.x == 0 && !done ){
+        stop2 = clock();
+      }
       // First, update vertex stuff
       if (not(tracks->isGood(itrack))) continue;
       double botrack_dz2 = -(*beta) * tracks->dz2(itrack);
       tracks->sum_Z(itrack) = Z_init;
       // First, let's get the partition function per track
       // printf("Track %i, kmin %i, kmax %i\n", itrack, tracks->kmin(itrack), tracks->kmax(itrack));
- //       if (threadIdx.x == 0 && blockIdx.x == 0 && !done ){
- //         printf("update stop 2.a: %i\n\n", (int) (clock()-stop2));
- //        stop2 = clock();
- //       }
+      if (threadIdx.x == 0 && blockIdx.x == 0 && !done ){
+        printf("update stop 2.a: %i\n\n", (int) (clock()-stop2));
+       stop2 = clock();
+      }
       for (unsigned int ivertexO = tracks->kmin(itrack) ; ivertexO < tracks->kmax(itrack) ; ++ivertexO){ // ivertexO loops over ordered vertex
         unsigned int ivertex = vertices->order(ivertexO); // ivertex translates from ordered vertex to real vertex positions
         double mult_res = tracks->z(itrack) - vertices->z(ivertex);
@@ -98,10 +96,10 @@ namespace clusterizerCUDA {
         tracks->vert_exp(itrack)(ivertex)    = exp(tracks->vert_exparg(itrack)(ivertex)); // exp is defined as device function in cuda
         tracks->sum_Z(itrack) += vertices->rho(ivertex)*tracks->vert_exp(itrack)(ivertex);
       }
- //       if (threadIdx.x == 0 && blockIdx.x == 0 && !done ){
- //         printf("update stop 2.b: %i\n\n", (int) (clock()-stop2));
- //         stop2 = clock();
- //       }
+      if (threadIdx.x == 0 && blockIdx.x == 0 && !done ){
+          printf("update stop 2.b: %i\n\n", (int) (clock()-stop2));
+          stop2 = clock();
+      }
       if(not(std::isfinite(tracks->sum_Z(itrack)))) tracks->sum_Z(itrack) = 0; // Just in case something diverges
       if(tracks->sum_Z(itrack) > 0){ // If partition > 0, then it is non-trivially assigned to a vertex and we need to compute stuff
         double sumw = tracks->weight(itrack)/tracks->sum_Z(itrack);
@@ -115,15 +113,21 @@ namespace clusterizerCUDA {
           
         }
       }
- //       if (threadIdx.x == 0 && blockIdx.x == 0 && !done ){
- //         printf("update stop 2.c: %i\n\n", (int) (clock()-stop2));
- //         done = true;
- //         stop2 = clock();
- //       }
+        if (threadIdx.x == 0 && blockIdx.x == 0 && !done ){
+          printf("update stop 2.c: %i\n\n", (int) (clock()-stop2));
+          done = true;
+          stop2 = clock();
+        }
     }
     __syncthreads(); // Need to synchronize, as now we have to add across vertexes
- //   if (threadIdx.x == 0 && blockIdx.x == 0)  printf("update stop 2: %i\n\n", (int) (clock()-stop));
- //   stop = clock();
+ 
+    if (threadIdx.x == 0 && blockIdx.x == 0)  printf("update stop 2: %i\n\n", (int) (clock()-stop));
+    stop = clock();
+ 
+    // Now that useful number have been stored in tracks matrices we need to some the columns and store the result inside vertices data members
+    
+
+    // first set to zero the data members of vertices that will store the sum
     for (unsigned int ivertexO = firstElement; ivertexO < vertices->nTrueVertex; ivertexO+=gridSize){
       unsigned int ivertex    = vertices->order(ivertexO); // ivertex translates from ordered vertex to real vertex positions
       vertices->se(ivertex)   = 0.;
@@ -132,35 +136,40 @@ namespace clusterizerCUDA {
       vertices->aux1(ivertex) = 0.; // Aux here is delta, the position variation in this update loop
       if (updateTc) vertices->swE(ivertex) = 0.;
     }
+
     __syncthreads(); //Just to be extremely careful
-    
-      for (unsigned int itrack = firstElement ; itrack < ntracks ; itrack+=gridSize){ //skip 0, as that is already in place
-        if (not(tracks->isGood(itrack))) continue;
-        for (unsigned int ivertexO = tracks->kmin(itrack); ivertexO < tracks->kmax(itrack); ivertexO++){
-          unsigned int ivertex    = vertices->order(ivertexO); // ivertex translates from ordered vertex to real vertex positions
+
+    // secondly sum across columns the matrices and store results    
+    for (unsigned int itrack = firstElement ; itrack < ntracks ; itrack+=gridSize){ //skip 0, as that is already in place
+      if (not(tracks->isGood(itrack))) continue;
+      for (unsigned int ivertexO = tracks->kmin(itrack); ivertexO < tracks->kmax(itrack); ivertexO++){
+        unsigned int ivertex    = vertices->order(ivertexO); // ivertex translates from ordered vertex to real vertex positions
         atomicAdd(&vertices->se(ivertex), tracks->vert_se(itrack)(ivertex));
         atomicAdd(&vertices->sw(ivertex) , tracks->vert_sw(itrack)(ivertex));
         atomicAdd(&vertices->swz(ivertex) , tracks->vert_swz(itrack)(ivertex));
         if (updateTc) atomicAdd(&vertices->swE(ivertex) , tracks->vert_swE(itrack)(ivertex));
       }
     }
-      __syncthreads();
+
+    __syncthreads();
+    
+    // finally evaluate the new position for each vertex
     for (unsigned int ivertexO = firstElement; ivertexO < vertices->nTrueVertex; ivertexO+=gridSize){
-          unsigned int ivertex    = vertices->order(ivertexO); // ivertex translates from ordered vertex to real vertex positions
+      unsigned int ivertex    = vertices->order(ivertexO); // ivertex translates from ordered vertex to real vertex positions
       if (vertices->sw(ivertex) > 0){ //The vertex position is updated
         double znew    = vertices->swz(ivertex)/vertices->sw(ivertex);
         vertices->aux1(ivertex) = abs(znew-vertices->z(ivertex));
         vertices->z(ivertex)    = znew; 
       }
       vertices->rho(ivertex)    = vertices->rho(ivertex) * vertices->se(ivertex) * (*osumtkwt);  // The relative vertex weight is updated
-      // if (ivertexO==0) printf("Params for first vertex, after update, se=%1.10f, sw=%1.10f, swz=%1.10f, swE=%1.10f, z=%1.10f, rho=%1.10f\n", vertices->se(ivertexO), vertices->sw(ivertexO), vertices->swz(ivertexO), vertices->swE(ivertexO), vertices->z(ivertexO), vertices->rho(ivertexO));
     }
+    
     __syncthreads(); //Just to be extremely careful
-    // printf("Finished updating!\n");
- //   if (0==threadIdx.x && 0==blockIdx.x) printf("update stop 3: %i\n\n", (int) (clock() - stop));
- //   stop = clock();    
- //   if (0==threadIdx.x && 0==blockIdx.x) printf("update total: %i\n\n", (int) (stop - start));
- //     __syncthreads(); 
+
+    if (0==threadIdx.x && 0==blockIdx.x) printf("update stop 3: %i\n\n", (int) (clock() - stop));
+    stop = clock();    
+    if (0==threadIdx.x && 0==blockIdx.x) printf("update total: %i\n\n", (int) (stop - start));
+    __syncthreads(); 
  //   if (threadIdx.x == 0 && blockIdx.x == 0) printf("Update function time: %i\n\n\n", (int) (clock()-start));
  //   __syncthreads();
   }

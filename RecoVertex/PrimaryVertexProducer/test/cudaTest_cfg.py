@@ -38,6 +38,7 @@ skipEvents=cms.untracked.uint32(0)
 )
 process.NVProfilerService = cms.Service("NVProfilerService"
 )
+
 """
 process.ThroughputService = cms.Service('ThroughputService',
     eventRange = cms.untracked.uint32(10),

@@ -12,6 +12,7 @@ __global__ void trackFilterKernel(unsigned int ntracks, TrackForPV::TrackForPVSo
     size_t firstElement = threadIdx.x + blockIdx.x * blockDim.x;
     size_t gridSize = blockDim.x * gridDim.x;
     // First the preselection block
+    if (ntracks > tracks->stride()) printf("\n\nCareful, we might loose some selected tracks because the number of tracks before selection is > # selected tracks max size\n\n");
     for (unsigned int i = firstElement; i < tracks->stride(); i += gridSize) {
       tracks->isGood(i) = false;
       tracks->weight(i) = 0;
@@ -84,7 +85,7 @@ __global__ void trackFilterKernel(unsigned int ntracks, TrackForPV::TrackForPVSo
         }
       }
       (*osumtkwt) = (*osumtkwt) > 0 ? 1./(*osumtkwt) : 0.; // This really is the only thing you need in a single thread, as multiple operations at once will break it
-      ////////// printf("Nsel_tracks after GPU filter: %i\n",nSelectedTracks); //DEBUG
+      printf("Nsel_tracks after GPU filter: %i\n",nSelectedTracks); //DEBUG
       ////////// printf("osumtkwt after GPU: %1.10f\n", *osumtkwt);
     }
     __syncthreads(); // Synchronize after loop

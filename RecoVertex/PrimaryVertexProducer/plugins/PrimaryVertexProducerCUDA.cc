@@ -167,7 +167,7 @@ PrimaryVertexProducerCUDA::~PrimaryVertexProducerCUDA() {
 
 void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
   // get the BeamSpot, it will always be needed, even when not used as a constraint
-  if (onGPU_) std::cout << "I'm producing this on CUDA!!" << std::endl;
+  // if (onGPU_) std::cout << "I'm producing this on CUDA!!" << std::endl;
   reco::BeamSpot beamSpot;
   edm::Handle<reco::BeamSpot> recoBeamSpotHandle;
   iEvent.getByToken(bsToken, recoBeamSpotHandle);
@@ -229,7 +229,7 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
   ////////////////////////////////////////////////////////////////////
   // We need a copy living in the host, in between steps, at least if we want to do the things "as in CPU"
   unsigned int ntracks = t_tks.size();
-  printf("nTracks in CPU: %u \n", ntracks); //DEBUG
+  // printf("nTracks in CPU: %u \n", ntracks); //DEBUG
   TrackForPVHeterogeneous CPUtracks(cms::cuda::make_host_unique<TrackForPV::TrackForPVSoA>(cudaStreamDefault));  // By construction we iterate over 8096 tracks, 512 vertices
   TrackForPVHeterogeneous GPUtracks(cms::cuda::make_device_unique<TrackForPV::TrackForPVSoA>(cudaStreamDefault));// By construction we iterate over 8096 tracks, 512 vertices
 

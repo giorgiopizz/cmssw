@@ -400,7 +400,7 @@ void initializeWrapper(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, 
 
 void getBeta0Wrapper(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices, double* beta, double* osumtkwt, clusterParameters params, cudaStream_t stream){
   // Beta0 is vectorized across tracks
-  unsigned int blockSize = 512; //Run 1024 threads in a single block
+  unsigned int blockSize = 512; //Run 512 threads in a single block
   unsigned int gridSize  = 1;
   getBeta0Kernel<<<gridSize, blockSize,0,stream>>>(ntracks, tracks, vertices, params, beta);
   cudaCheck(cudaGetLastError());
