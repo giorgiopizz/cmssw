@@ -238,7 +238,12 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
 
   // Hackery, to get the input in a SoA format from the start -which would happen if the tracking is done in GPU, but would need to be adapted accordingly-
   // TODO::Cleanup of this loading
+  /*
   for (unsigned int idx=0; idx < t_tks.size() ; idx++){
+    if (idx > CPUtracks.stride()){
+        std::cout << "Error, size of tracks SoA is too small: " << CPUtracksObject->stride() << " while tracks are " << t_tks.size() << std::endl;
+        break;
+    }
     CPUtracksObject->significance(idx) = t_tks.at(idx).stateAtBeamLine().transverseImpactParameter().significance();
     CPUtracksObject->dxy2(idx)         = t_tks.at(idx).stateAtBeamLine().transverseImpactParameter().error()*t_tks.at(idx).stateAtBeamLine().transverseImpactParameter().error();
     CPUtracksObject->dz2(idx)          = t_tks.at(idx).track().dzError()*t_tks.at(idx).track().dzError();
@@ -254,18 +259,115 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
     CPUtracksObject->nPixelHits(idx)   = t_tks.at(idx).hitPattern().pixelLayersWithMeasurement();
     CPUtracksObject->nTrackerHits(idx) = t_tks.at(idx).hitPattern().trackerLayersWithMeasurement();
   }
+    */
   
- 
+  unsigned int nTrueTracks = 0; 
+  auto CPUosumtkwt = cms::cuda::make_host_unique<double[]>(1, cudaStreamDefault);                                         // 1/T, to be kept across iterations
+  auto* CPUosumtkwtObject = CPUosumtkwt.get();
+  for (unsigned int idx=0; idx < t_tks.size() ; idx++){
+    double significance		= t_tks.at(idx).stateAtBeamLine().transverseImpactParameter().significance();
+    double dxy2		= t_tks.at(idx).stateAtBeamLine().transverseImpactParameter().error()*t_tks.at(idx).stateAtBeamLine().transverseImpactParameter().error();
+    double dz2		= t_tks.at(idx).track().dzError()*t_tks.at(idx).track().dzError();
+    double pAtIP		= t_tks.at(idx).impactPointState().globalMomentum().transverse();
+    double pxAtPCA		= t_tks.at(idx).stateAtBeamLine().trackStateAtPCA().momentum().x();
+    double pyAtPCA		= t_tks.at(idx).stateAtBeamLine().trackStateAtPCA().momentum().y();
+    double pzAtPCA		= t_tks.at(idx).stateAtBeamLine().trackStateAtPCA().momentum().z();
+    double bx		= t_tks.at(idx).stateAtBeamLine().beamSpot().BeamWidthX();
+    double by		= t_tks.at(idx).stateAtBeamLine().beamSpot().BeamWidthY();
+    double z		= t_tks.at(idx).stateAtBeamLine().trackStateAtPCA().position().z();
+    double etaAtIP		= std::fabs(t_tks.at(idx).impactPointState().globalMomentum().eta());
+    double chi2		= t_tks.at(idx).normalizedChi2();
+    int8_t nPixelHits		= t_tks.at(idx).hitPattern().pixelLayersWithMeasurement();
+    int8_t nTrackerHits		= t_tks.at(idx).hitPattern().trackerLayersWithMeasurement();
+
+    bool isGood = false;
+    double weight = 0;
+      if (significance < fParams.maxSignificance){
+        if (dxy2 < fParams.maxdxyError*fParams.maxdxyError){
+          if (dz2 < fParams.maxdzError*fParams.maxdzError){
+            if (pAtIP > fParams.minpAtIP){
+              if (std::fabs(etaAtIP) < fParams.maxetaAtIP){
+                if (chi2 < fParams.maxchi2){
+                  if (nPixelHits >= fParams.minpixelHits){
+                    if (nTrackerHits >= fParams.mintrackerHits){
+                      isGood = true;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      // And now the stuff for the clusterizer
+      if (isGood){
+        weight = 1.;  
+        if (std::fabs(z) > 1000.){ 
+          isGood = false;
+          weight = 0;
+          continue;
+        }
+        else{ // Get dz2 for the track
+          // dz2 is zerror^2 + (bx*px + by*py)^2*pz^2/(pt^4) + vertex_size^2
+          dz2 = dz2 
+                         + (bx*bx*pxAtPCA*pxAtPCA + by*by*pyAtPCA*pyAtPCA)* pzAtPCA*pzAtPCA/(( pxAtPCA*pxAtPCA + pyAtPCA*pyAtPCA )* ( pxAtPCA*pxAtPCA + pyAtPCA*pyAtPCA)) 
+                         + fParams.vertexSize*fParams.vertexSize; // TODO:: For sure ways to optimize this
+          dz2 = 1./dz2;
+          if (not(std::isfinite(dz2)) || dz2< std::numeric_limits<double>::min()){ // Bad track dz2 is taken out
+            isGood = false;
+            weight = 0;
+            continue;
+          }
+          else{
+            if (fParams.d0CutOff > 0){ // Track weights are activated only if there is a non-zero cutoff
+              // weight is 1/(1 + e^{sig^2 - d0cutoff^2})
+              weight = 1./ (1+exp(significance*significance - fParams.d0CutOff*fParams.d0CutOff ));
+              if (not(std::isfinite(weight)) || weight< std::numeric_limits<double>::epsilon()){ // Bad track weight is taken out
+                isGood = false;
+                weight = 0;
+                continue;
+              }
+            }
+            // If we are here, the track is to be passed to the clusterizer. So initialize the clusterizer stuff
+            // really save track now!
+            if (idx > CPUtracksObject->stride()){
+                std::cout << "Error, size of tracks SoA is too small: " << CPUtracksObject->stride() << " while tracks are " << t_tks.size() << std::endl;
+                break;
+            }
+            (*CPUosumtkwtObject) += weight;
+            CPUtracksObject->z(nTrueTracks) = z;
+            CPUtracksObject->weight(nTrueTracks) = weight;
+            CPUtracksObject->tt_index(nTrueTracks) = idx;
+            CPUtracksObject->dz2(nTrueTracks) = dz2;
+            CPUtracksObject->order(nTrueTracks) = nTrueTracks;
+            CPUtracksObject->sum_Z(nTrueTracks) = 0;
+            CPUtracksObject->kmin(nTrueTracks) = 0; // will loop from kmin to kmax-1. At the start only one vertex
+            CPUtracksObject->kmax(nTrueTracks) = 1;
+            CPUtracksObject->aux1(nTrueTracks) = 0;
+            CPUtracksObject->aux2(nTrueTracks) = 0;
+            nTrueTracks++;
+          }
+        }
+      }
+  }
+  CPUtracksObject->nTrueTracks = nTrueTracks;
+  
+  (*CPUosumtkwtObject) = (*CPUosumtkwtObject) > 0 ? 1./(*CPUosumtkwtObject) : 0.; 
 
   ////////////////////////////////////////////////////////////////////
   ////////////////////// Track filtering on GPU //////////////////////
   ////////////////////////////////////////////////////////////////////
-  //std::cout << "Begin copying 1" << std::endl;
+  std::cout << "Begin copying 1" << std::endl;
+  std::cout << "size of tracks: " << sizeof(TrackForPV::TrackForPVSoA) << std::endl;
+  std::cout << "size of vertices: " << sizeof(TrackForPV::VertexForPVSoA) << std::endl;
   cudaCheck(cudaMemcpy(GPUtracksObject, CPUtracksObject, sizeof(TrackForPV::TrackForPVSoA), cudaMemcpyHostToDevice));
-  //std::cout << "Finished copying 1" << std::endl;
+  std::cout << "Finished copying 1\nBegin copying osumtkwt" << std::endl;
   auto osumtkwt      = cms::cuda::make_device_unique<double[]>(1, cudaStreamDefault); //Sum of all track weights, for the clusterizer later
+  cudaCheck(cudaMemcpy(osumtkwt.get(), CPUosumtkwtObject, sizeof(double), cudaMemcpyHostToDevice));
+  std::cout << "End copying 2" << std::endl;
+  trackFilterCUDA::sorterWrapper(ntracks, GPUtracksObject, cudaStreamDefault); //TODO:: We can also consider a minidataformat for the beamspot in GPU
 
-  trackFilterCUDA::filterWrapper(ntracks, GPUtracksObject, fParams, osumtkwt.get(), cudaStreamDefault); //TODO:: We can also consider a minidataformat for the beamspot in GPU
+//  trackFilterCUDA::filterWrapper(ntracks, GPUtracksObject, fParams, osumtkwt.get(), cudaStreamDefault); //TODO:: We can also consider a minidataformat for the beamspot in GPU
   
 
 
@@ -281,6 +383,7 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
 
   auto CPUbeta = cms::cuda::make_host_unique<double[]>(1, cudaStreamDefault);                                         // 1/T, to be kept across iterations
   auto GPUbeta = cms::cuda::make_device_unique<double[]>(1, cudaStreamDefault);                                         // 1/T, to be kept across iterations
+  /* 
   // Add first vertex, init all collections
   clusterizerCUDA::initializeWrapper(ntracks, GPUtracksObject, GPUverticesObject, GPUbeta.get(), osumtkwt.get(), cParams, cudaStreamDefault);
   // Estimate first critical temperature
@@ -295,7 +398,13 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
   clusterizerCUDA::resplitTracksWrapper(ntracks, GPUtracksObject, GPUverticesObject, GPUbeta.get(), osumtkwt.get(), cParams, cudaStreamDefault);
   // Outlier rejection at fixed T, low quality vertex purging and final cooling down to the stopping criteria
   clusterizerCUDA::outlierRejectionWrapper(ntracks, GPUtracksObject, GPUverticesObject, GPUbeta.get(), osumtkwt.get(), cParams, cudaStreamDefault);
+  */
+ 
+  std::cout << "Begin kernel" << std::endl;
+  clusterizerCUDA::bigKernelWrapper(ntracks, GPUtracksObject, GPUverticesObject, GPUbeta.get(), osumtkwt.get(), cParams, cudaStreamDefault);
+  std::cout << "End kernel" << std::endl;
   
+   
   ///// TODO:: update this when we put the fitter into GPU as well ////
   
   //cudaCheck(cudaFree(GPUverticesObject));
@@ -304,14 +413,23 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
   //cudaCheck(cudaFree(beta.get()));
   //cudaCheck(cudaFree(osumtkwt.get()));
 
-  //std::cout << "Begin copying 2" << std::endl;
+  std::cout << "Begin copying back" << std::endl;
+  std::cout << "size of vertices: " << sizeof(TrackForPV::VertexForPVSoA) << std::endl;
   cudaCheck(cudaMemcpy(CPUverticesObject, GPUverticesObject, sizeof(TrackForPV::VertexForPVSoA), cudaMemcpyDeviceToHost));
+  std::cout << "End copying back" << std::endl;
+  std::cout << "Begin copying back 2" << std::endl;
   cudaCheck(cudaMemcpy(CPUtracksObject, GPUtracksObject, sizeof(TrackForPV::TrackForPVSoA), cudaMemcpyDeviceToHost));
+  std::cout << "End copying back 2" << std::endl;
+  //unsigned int gridSize  = 32;
+  //clusterizerCUDA::dumpTV(CPUtracksObject, CPUverticesObject, gridSize);
+
+  /*
   cudaCheck(cudaMemcpy(CPUbeta.get(), GPUbeta.get(), sizeof(double), cudaMemcpyDeviceToHost));
   //std::cout << "Finished copying 2" << std::endl;
   std::vector<TransientVertex> pv = clusterizerCUDA::vertices(ntracks, CPUtracksObject, CPUverticesObject, cParams, t_tks, CPUbeta.get());
   // clusterize tracks in Z
   std::vector<std::vector<reco::TransientTrack> >&& clusters = clusterizerCUDA::clusterize(pv, cParams);
+  */
 
   ////////////////////////////////////////////////////////////////////
   ////////////////////// Fitting on GPU //////////////////////////////
@@ -325,6 +443,7 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
               << " selected tracks" << std::endl;
   }
   */
+  std::vector<std::vector<reco::TransientTrack> > clusters;
 
   // vertex fits
   for (std::vector<algo>::const_iterator algorithm = algorithms.begin(); algorithm != algorithms.end(); algorithm++) {

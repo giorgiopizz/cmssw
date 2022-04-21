@@ -6,7 +6,8 @@
 #include "RecoVertex/PrimaryVertexProducer/interface/trackFilterCUDA.h"
 #include <stdio.h>
 namespace trackFilterCUDA {
-
+// track selection should happen on cpu because we're already looping on tracks for the SoA filling => perform this step inside that loop
+/*
 __global__ void trackFilterKernel(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, filterParameters params, double* osumtkwt){
     // TODO:: Study performance of explicitly writing squares vs std::pow. Study performance of atomics for the serial part
     size_t firstElement = threadIdx.x + blockIdx.x * blockDim.x;
@@ -16,7 +17,7 @@ __global__ void trackFilterKernel(unsigned int ntracks, TrackForPV::TrackForPVSo
     for (unsigned int i = firstElement; i < tracks->stride(); i += gridSize) {
       tracks->isGood(i) = false;
       tracks->weight(i) = 0;
-      if (i > ntracks) continue; // If in the empty region go on
+      if (i > ntracks) break; // If in the empty region go on
       if (tracks->significance(i) < params.maxSignificance){
         if (tracks->dxy2(i) < params.maxdxyError*params.maxdxyError){
           if (tracks->dz2(i) < params.maxdzError*params.maxdzError){
@@ -80,24 +81,90 @@ __global__ void trackFilterKernel(unsigned int ntracks, TrackForPV::TrackForPVSo
       for (unsigned int i = 0 ; i < ntracks ; i++){
         if (tracks->isGood(i)){
           (*osumtkwt) += tracks->weight(i);
+          tracks->order(nSelectedTracks) = i;
           nSelectedTracks++; //DEBUG
           //printf("itrack, z, dz2, weight: %i %1.10f %1.10f %1.10f\n", i, tracks->z(i), tracks->dz2(i), tracks->weight(i));
         }
       }
+    
       (*osumtkwt) = (*osumtkwt) > 0 ? 1./(*osumtkwt) : 0.; // This really is the only thing you need in a single thread, as multiple operations at once will break it
-      printf("Nsel_tracks after GPU filter: %i\n",nSelectedTracks); //DEBUG
+      //tracks->nTrueTracks = (int)  nSelectedTracks/10;
+      tracks->nTrueTracks = (int)  nSelectedTracks;
+      //tracks->nTrueTracks = (int)  256;
+      printf("N true tracks after GPU filter: %i\n",tracks->nTrueTracks); //DEBUG
+        
+      
       ////////// printf("osumtkwt after GPU: %1.10f\n", *osumtkwt);
     }
     __syncthreads(); // Synchronize after loop
 }
+*/
+
+
+
+__global__ void trackSorterKernel(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks){
+    // double tracksZ[nTrueTracks];
+    if (threadIdx.x == 0 && blockIdx.x == 0) { 
+      double tracksZ[8196]; // we will copy each z coord. inside this array so that when we find the min we will "remove" the min found from next iteration
+      for (unsigned int itrack = 0; itrack < tracks->stride(); itrack ++ ) {
+          tracksZ[itrack] = tracks->z(itrack);
+      }
+      double min = 100000.0;
+      int iMinO = -1; 
+      unsigned int iTrueMinO = 0;
+      unsigned int trueTracksOrder[8196]; // will be our future tracks->order
+ 
+      for (unsigned int itrackO = 0 ; itrackO < tracks->nTrueTracks ; itrackO++){
+          min = 100000.0;
+          iMinO = -1;
+          for (unsigned int itrackOO = 0 ; itrackOO < tracks->nTrueTracks; itrackOO++){
+              unsigned int itrack = tracks->order(itrackOO);
+              if (tracksZ[itrack]<min){
+                  min = tracksZ[itrack];      
+                  iMinO = itrack;
+              }
+           }
+           trueTracksOrder[iTrueMinO] = iMinO;
+           tracksZ[iMinO] = 100000.0;
+           iTrueMinO++;
+      }
+     if (iTrueMinO != tracks->nTrueTracks) printf("num sorted tracks != num unsorted tracks: (%d, %d) \n\n",iTrueMinO,  tracks->nTrueTracks);
+     for (unsigned int itrackO = 0; itrackO < iTrueMinO -1 ; itrackO ++ ){
+        unsigned int itrack = trueTracksOrder[itrackO];
+        unsigned int itrackNext = trueTracksOrder[itrackO+1];
+        if (tracks->z(itrack) > tracks->z(itrackNext)) printf("problem with the ordered track (z1,z2): (%f, %f)\n(order1, pos1): (%d, %d)\n\n", tracks->z(itrack), tracks->z(itrackNext), itrackO, itrack);
+     }
+//     printf("\n\ndump\n\n\n");
+//     for (unsigned int itrackO = 0; itrackO < iTrueMinO -1 ; itrackO ++ ){
+//        unsigned int itrack = trueTracksOrder[itrackO];
+//        printf("(order,pos,z): (%d, %d, %f)\n\n", itrackO,itrack, tracks->z(itrack));
+//     }
+     for (unsigned int itrackO = 0; itrackO < iTrueMinO ; itrackO ++ ){
+        tracks->order(itrackO) = trueTracksOrder[itrackO] ;
+     }
+     //tracks->nTrueTracks = 256;
+    }    
+
+}
+
 
 #ifdef __CUDACC__
   // Only on GPUs, of course...
+void sorterWrapper(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, cudaStream_t stream){
+    unsigned int blockSize = 1; // TODO::Optimize this
+    unsigned int gridSize  = 1; // TrackForPV::TrackForPVSoA always has 8096 entries. TODO::Automatize this one
+    trackSorterKernel<<<gridSize, blockSize, 0, stream>>>(ntracks, tracks);
+    cudaCheck(cudaGetLastError());
+}
+/*
 void filterWrapper(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, filterParameters params, double* osumtkwt, cudaStream_t stream){
     unsigned int blockSize = 512; // TODO::Optimize this
     unsigned int gridSize  = 1; // TrackForPV::TrackForPVSoA always has 8096 entries. TODO::Automatize this one
-    trackFilterKernel<<<gridSize, blockSize, 0, stream>>>(ntracks, tracks, params, osumtkwt);
+//    trackFilterKernel<<<gridSize, blockSize, 0, stream>>>(ntracks, tracks, params, osumtkwt);
+//    cudaCheck(cudaGetLastError());
+    trackSorterKernel<<<gridSize, blockSize, 0, stream>>>(ntracks, tracks);
     cudaCheck(cudaGetLastError());
 }
+*/
 #endif
 }

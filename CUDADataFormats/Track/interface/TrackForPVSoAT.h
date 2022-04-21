@@ -10,7 +10,7 @@
 #include "HeterogeneousCore/CUDAUtilities/interface/eigenSoA.h"
 #include <Eigen/Dense>
 
-using Vector512d = Eigen::Matrix<double, 512, 1>;
+using Vector512d = Eigen::Matrix<double, 1024, 1>;
 
 template <int32_t S>
 class TrackForPVSoAHeterogeneousT {
@@ -19,30 +19,32 @@ public:
 
 public:
   // Track properties needed for the PV selection + fitting
-
+  unsigned int nTrueTracks;
   eigenSoA::ScalarSoA<double, S> significance;
-  eigenSoA::ScalarSoA<double, S> dxy2;
-  eigenSoA::ScalarSoA<double, S> dz2;
+  //eigenSoA::ScalarSoA<double, S> dxy2;
+  eigenSoA::ScalarSoA<double, S> dz2; // used in clusterizer
   eigenSoA::ScalarSoA<double, S> z;
   eigenSoA::ScalarSoA<double, S> weight;
   eigenSoA::ScalarSoA<double, S> sum_Z;
   eigenSoA::ScalarSoA<unsigned int, S> kmin;
   eigenSoA::ScalarSoA<unsigned int, S> kmax;
   eigenSoA::ScalarSoA<bool, S> isGood;
+  eigenSoA::ScalarSoA<int, S> order;
+  eigenSoA::ScalarSoA<unsigned int, S> tt_index;
 
   // For now, we can consider saving the full 4-momentum?
-  eigenSoA::ScalarSoA<double, S> pAtIP;
-  eigenSoA::ScalarSoA<double, S> etaAtIP;
-  eigenSoA::ScalarSoA<double, S> pxAtPCA;
-  eigenSoA::ScalarSoA<double, S> pyAtPCA;
-  eigenSoA::ScalarSoA<double, S> pzAtPCA;
-  eigenSoA::ScalarSoA<double, S> bx;
-  eigenSoA::ScalarSoA<double, S> by;
+  //eigenSoA::ScalarSoA<double, S> pAtIP;
+  //eigenSoA::ScalarSoA<double, S> etaAtIP;
+  //eigenSoA::ScalarSoA<double, S> pxAtPCA;
+  //eigenSoA::ScalarSoA<double, S> pyAtPCA;
+  //eigenSoA::ScalarSoA<double, S> pzAtPCA;
+  //eigenSoA::ScalarSoA<double, S> bx;
+  //eigenSoA::ScalarSoA<double, S> by;
 
-  eigenSoA::ScalarSoA<double, S> chi2;
+  //eigenSoA::ScalarSoA<double, S> chi2;
 
-  eigenSoA::ScalarSoA<int8_t, S> nPixelHits;
-  eigenSoA::ScalarSoA<int8_t, S> nTrackerHits;
+  //eigenSoA::ScalarSoA<int8_t, S> nPixelHits;
+  //eigenSoA::ScalarSoA<int8_t, S> nTrackerHits;
 
   // The track-vertex association matrices
   eigenSoA::MatrixSoA<Vector512d, S> vert_sw;
@@ -64,7 +66,8 @@ public:
 
 public:
   // Track properties needed for the PV selection + fitting
-  unsigned int nTrueVertex;
+  //unsigned int nTrueVertex;
+  eigenSoA::ScalarSoA<unsigned int, S> nTrueVertex;  
   eigenSoA::ScalarSoA<bool, S> isGood;  
   eigenSoA::ScalarSoA<double, S> sw;
   eigenSoA::ScalarSoA<double, S> se;
@@ -86,11 +89,11 @@ namespace TrackForPV {
 #ifdef GPU_SMALL_EVENTS
   // kept for testing and debugging
   constexpr uint32_t maxNumberT() { return 2 * 1024; }
-  constexpr uint32_t maxNumberV() { return 512; }
+  constexpr uint32_t maxNumberV() { return 1024; }
 #else
   // tested on MC events with 55-75 pileup events
   constexpr uint32_t maxNumberT() { return 8 * 1024; }
-  constexpr uint32_t maxNumberV() { return 512; }
+  constexpr uint32_t maxNumberV() { return 1024; }
 #endif
 
   using TrackForPVSoA  = TrackForPVSoAHeterogeneousT<maxNumberT()>;

@@ -9,6 +9,7 @@ process.load("Configuration.StandardSequences.MagneticField_cff")
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
 #process.load('HeterogeneousCore.CUDACore.ProcessAcceleratorCUDA_cfi')
 process.load("HeterogeneousCore.CUDAServices.CUDAService_cfi")
+process.load("HeterogeneousCore.CUDAServices.NVProfilerService_cfi")
 
 #process.load( "HLTrigger.Timer.FastTimerService_cfi" )
 
@@ -34,6 +35,10 @@ fileNames = cms.untracked.vstring(
 ),
 #firstEvent = cms.untracked.uint32(2)
 skipEvents=cms.untracked.uint32(0)
+)
+
+
+process.NVProfilerService = cms.Service("NVProfilerService"
 )
 
 """

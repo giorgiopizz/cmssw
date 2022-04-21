@@ -19,7 +19,8 @@ namespace trackFilterCUDA {
     double vertexSize;
     double d0CutOff;
   };
-  void filterWrapper(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, filterParameters params, double* osumtkwt, cudaStream_t stream);
+void sorterWrapper(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, cudaStream_t stream);
+ // void filterWrapper(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, filterParameters params, double* osumtkwt, cudaStream_t stream);
 }
 
 #endif
