@@ -8,4 +8,5 @@
 <use name="HeterogeneousCore/CUDACore"/>
 <library file="*.cc *.cu" name="RecoVertexPrimaryVertexProducerPlugins">
   <flags EDM_PLUGIN="1"/>
+  <flags CUDA_FLAGS="-g -G"/>
 </library>
