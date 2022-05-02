@@ -20,6 +20,8 @@ public:
 public:
   // Track properties needed for the PV selection + fitting
   unsigned int nTrueTracks;
+  double max_z;
+  double min_z;
   eigenSoA::ScalarSoA<double, S> significance;
   //eigenSoA::ScalarSoA<double, S> dxy2;
   eigenSoA::ScalarSoA<double, S> dz2; // used in clusterizer
@@ -92,7 +94,7 @@ namespace TrackForPV {
   constexpr uint32_t maxNumberV() { return 1024; }
 #else
   // tested on MC events with 55-75 pileup events
-  constexpr uint32_t maxNumberT() { return 8 * 1024; }
+  constexpr uint32_t maxNumberT() { return 16 * 1024; }
   constexpr uint32_t maxNumberV() { return 1024; }
 #endif
 

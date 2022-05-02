@@ -11,6 +11,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 #include <thrust/sort.h>
+#include "HeterogeneousCore/CUDAUtilities/interface/radixSort.h"
 
 namespace clusterizerCUDA {
   struct clusterParameters {
@@ -803,6 +804,7 @@ namespace clusterizerCUDA {
     __syncthreads();
     if (nvprev != vertices->nTrueVertex(blockIdx.x)){
       set_vtx_range(ntracks, tracks, vertices, params, osumtkwt, beta);
+      return;
     }
    
     __syncthreads();
@@ -829,8 +831,8 @@ namespace clusterizerCUDA {
 
   }
 }
-//  std::vector<TransientVertex> vertices(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices, clusterParameters params, const std::vector<reco::TransientTrack>& t_tks, double * beta) ;
-//  std::vector<std::vector<reco::TransientTrack>> clusterize(std::vector<TransientVertex>& pv, clusterParameters params) ;
+std::vector<TransientVertex> vertices(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices, clusterParameters params, const std::vector<reco::TransientTrack>& t_tks, double * beta) ;
+  std::vector<std::vector<reco::TransientTrack>> clusterize(std::vector<TransientVertex>& pv, clusterParameters params) ;
   /*
   void initializeWrapper(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices, double* beta, double* osumtkwt, clusterParameters params, cudaStream_t stream);
   void getBeta0Wrapper(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices, double* beta, double* osumtkwt, clusterParameters params, cudaStream_t stream);

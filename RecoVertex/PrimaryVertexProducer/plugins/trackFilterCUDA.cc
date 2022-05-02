@@ -5,6 +5,10 @@
 #include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
 #include "RecoVertex/PrimaryVertexProducer/interface/trackFilterCUDA.h"
 #include <stdio.h>
+
+#ifdef __CUDA_ARCH__
+#include "HeterogeneousCore/CUDAUtilities/interface/radixSort.h"
+#endif
 namespace trackFilterCUDA {
 // track selection should happen on cpu because we're already looping on tracks for the SoA filling => perform this step inside that loop
 /*
@@ -104,6 +108,7 @@ __global__ void trackFilterKernel(unsigned int ntracks, TrackForPV::TrackForPVSo
 
 __global__ void trackSorterKernel(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks){
     // double tracksZ[nTrueTracks];
+    /*
     if (threadIdx.x == 0 && blockIdx.x == 0) { 
       double tracksZ[8196]; // we will copy each z coord. inside this array so that when we find the min we will "remove" the min found from next iteration
       for (unsigned int itrack = 0; itrack < tracks->stride(); itrack ++ ) {
@@ -134,6 +139,8 @@ __global__ void trackSorterKernel(unsigned int ntracks, TrackForPV::TrackForPVSo
         unsigned int itrackNext = trueTracksOrder[itrackO+1];
         if (tracks->z(itrack) > tracks->z(itrackNext)) printf("problem with the ordered track (z1,z2): (%f, %f)\n(order1, pos1): (%d, %d)\n\n", tracks->z(itrack), tracks->z(itrackNext), itrackO, itrack);
      }
+    
+
 //     printf("\n\ndump\n\n\n");
 //     for (unsigned int itrackO = 0; itrackO < iTrueMinO -1 ; itrackO ++ ){
 //        unsigned int itrack = trueTracksOrder[itrackO];
@@ -144,14 +151,89 @@ __global__ void trackSorterKernel(unsigned int ntracks, TrackForPV::TrackForPVSo
      }
      //tracks->nTrueTracks = 256;
     }    
+    */
+    // if (threadIdx.x == 0 && blockIdx.x == 0) printf("nTrueTracks in sorter: %d\n", tracks->nTrueTracks);
+    size_t firstElement = threadIdx.x + blockIdx.x * blockDim.x; // This is going to be the track index
+    size_t gridSize = blockDim.x * gridDim.x;
+  __shared__ float tracksZ[5120]; // we will copy each z coord. inside this array so that when we find the min we will "remove" the min found from next iteration
+   
+  if (tracks->nTrueTracks < 5120) {
 
+  for (unsigned int itrack=firstElement; itrack<tracks->nTrueTracks; itrack+=gridSize) {
+        tracksZ[itrack] = tracks->z(itrack);
+  }
+  __syncthreads();
+
+      __shared__ __restrict__ uint16_t trueTracksOrder[5120];
+      __shared__ uint16_t sws[5120];
+
+      unsigned int const& nvFinal = tracks->nTrueTracks;
+      #ifdef __CUDA_ARCH__
+      radixSort<float, 2>(tracksZ, trueTracksOrder, sws, nvFinal);
+      #else
+      if (threadIdx.x == 0 && blockIdx.x == 0) {
+            for (unsigned int itrackO=0; itrackO<tracks->nTrueTracks; itrackO++){
+                unsigned int itrack = trueTracksOrder[itrackO];
+                float z = tracksZ[itrack];
+                printf("itrack %d, itrackO %d, z %f\n", itrackO, itrack, z);
+            } 
+       }
+      #endif
+      __syncthreads();
+      /*
+       */
+      for (unsigned int itrack=firstElement; itrack<tracks->nTrueTracks; itrack+=gridSize) {
+            tracks->order(itrack) = trueTracksOrder[itrack];
+      }
+       __syncthreads();
+  } else {
+
+      // __shared__ float tracksZ[4096]; // we will copy each z coord. inside this array so that when we find the min we will "remove" the min found from next iteration
+      return;
+/*
+      unsigned int steps = std::ceil(tracks->nTrueTracks / 4096);
+      double range = (tracks->max_z - tracks->min_z )/steps ;
+      for (unsigned int itrack=0; itrack<tracks->nTrueTracks; itrack++) {
+            if (tracks->z(itrack) 
+            tracksZ[nTrueTracks] = tracks->z(itrack); 
+            nTrueTracks++;
+        }
+      for (unsigned int itrack=firstElement; itrack<tracks->nTrueTracks; itrack+=gridSize) {
+            tracksZ[itrack] = tracks->z(itrack);
+      }
+*/
+  __syncthreads();
+      
+      __shared__ __restrict__ uint16_t trueTracksOrder[4096];
+      __shared__ uint16_t sws[4096];
+
+      unsigned int const& nvFinal = tracks->nTrueTracks;
+      #ifdef __CUDA_ARCH__
+      radixSort<float, 2>(tracksZ, trueTracksOrder, sws, nvFinal);
+      #else
+      if (threadIdx.x == 0 && blockIdx.x == 0) {
+            for (unsigned int itrackO=0; itrackO<tracks->nTrueTracks; itrackO++){
+                unsigned int itrack = trueTracksOrder[itrackO];
+                float z = tracksZ[itrack];
+                printf("itrack %d, itrackO %d, z %f\n", itrackO, itrack, z);
+            } 
+       }
+      #endif
+      __syncthreads();
+      /*
+       */
+      for (unsigned int itrack=firstElement; itrack<tracks->nTrueTracks; itrack+=gridSize) {
+            tracks->order(itrack) = trueTracksOrder[itrack];
+      }
+       __syncthreads();
+    }
 }
 
 
 #ifdef __CUDACC__
   // Only on GPUs, of course...
 void sorterWrapper(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, cudaStream_t stream){
-    unsigned int blockSize = 1; // TODO::Optimize this
+    unsigned int blockSize = 512; // TODO::Optimize this
     unsigned int gridSize  = 1; // TrackForPV::TrackForPVSoA always has 8096 entries. TODO::Automatize this one
     trackSorterKernel<<<gridSize, blockSize, 0, stream>>>(ntracks, tracks);
     cudaCheck(cudaGetLastError());

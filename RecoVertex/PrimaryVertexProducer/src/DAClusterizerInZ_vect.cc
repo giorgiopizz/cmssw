@@ -799,23 +799,23 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices(const vector<reco::Trans
   // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
   double betafreeze = betamax_ * sqrt(coolingFactor_);
-  printf("Start cooling! \n");
+//  printf("Start cooling! \n");
   while (beta < betafreeze) {
-    printf("New T: %1.5f ; nv = %i \n",1./(beta), y.getSize());
+//    printf("New T: %1.5f ; nv = %i \n",1./(beta), y.getSize());
     while (merge(y, tks, beta)) {
-      printf("After merging nv = %i \n", y.getSize());
+//      printf("After merging nv = %i \n", y.getSize());
       update(beta, tks, y, rho0, false);
     }
-    printf("After merge loop nv = %i \n", y.getSize());
+//    printf("After merge loop nv = %i \n", y.getSize());
     split(beta, tks, y);
-    printf("After splitting nv = %i \n", y.getSize());
+//    printf("After splitting nv = %i \n", y.getSize());
 
     beta = beta / coolingFactor_;
     thermalize(beta, tks, y, delta_highT_);
-    printf("End of while loop, update the temp!\n");
+//    printf("End of while loop, update the temp!\n");
 
     for (unsigned int ivertexO = 0; ivertexO < y.getSize() ; ivertexO++){
-      printf("At T=%1.3f, ivertex=%i, pos=%1.10f, rho=%1.10f\n", 1./(beta), ivertexO, y.zvtx_vec[ivertexO], y.rho_vec[ivertexO]);
+//      printf("At T=%1.3f, ivertex=%i, pos=%1.10f, rho=%1.10f\n", 1./(beta), ivertexO, y.zvtx_vec[ivertexO], y.rho_vec[ivertexO]);
     }
   }
 
@@ -939,11 +939,15 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices(const vector<reco::Trans
 
   set_vtx_range(beta, tks, y);
   const unsigned int nv = y.getSize();
+  //std::cout << "ivtxO,z" << std::endl;
   for (unsigned int k = 0; k < nv; k++) {
     if (edm::isNotFinite(y.rho[k]) || edm::isNotFinite(y.zvtx[k])) {
       y.rho[k] = 0;
       y.zvtx[k] = 0;
     }
+//    else{
+//        std::cout << k << "," << y.zvtx[k] << std::endl;
+//    }
   }
 
   const auto z_sum_init = rho0 * local_exp(-beta * dzCutOff_ * dzCutOff_);
@@ -962,18 +966,20 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices(const vector<reco::Trans
       tks.sum_Z[i] += y.rho[k] * y.exp[k];
     }
     const double invZ = tks.sum_Z[i] > 1e-100 ? 1. / tks.sum_Z[i] : 0.0;
-
+    double p_max = -1;
+    unsigned int iMax = 100000;
     for (auto k = kmin; k < kmax; k++) {
       double p = y.rho[k] * y.exp[k] * invZ;
-      if (p > mintrkweight_) {
+      if (p>p_max && p > mintrkweight_) {
         // assign  track i -> vertex k (hard, mintrkweight_ should be >= 0.5 here
-        vtx_track_indices[k].push_back(i);
-        break;
+        p_max = p;
+        iMax = k;
       }
     }
-
+  if (iMax < 1024)  vtx_track_indices[iMax].push_back(i);
   }  // track loop
 
+  //std::cout << "z vrtx,ith track" << std::endl;
   GlobalError dummyError(0.01, 0, 0.01, 0., 0., 0.01);
   for (unsigned int k = 0; k < nv; k++) {
     if (!vtx_track_indices[k].empty()) {
@@ -981,6 +987,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices(const vector<reco::Trans
       vector<reco::TransientTrack> vertexTracks;
       for (auto i : vtx_track_indices[k]) {
         vertexTracks.push_back(*(tks.tt[i]));
+        //std::cout << y.zvtx[k] << "," << (*tks.tt[i]).stateAtBeamLine().trackStateAtPCA().position().z() << std::endl;
       }
       TransientVertex v(pos, dummyError, vertexTracks, 0);
       clusters.push_back(v);

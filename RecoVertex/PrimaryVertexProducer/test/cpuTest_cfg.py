@@ -8,8 +8,8 @@ process.load("Configuration.Geometry.GeometryIdeal_cff")
 process.load("Configuration.StandardSequences.MagneticField_cff")
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
 #process.load('HeterogeneousCore.CUDACore.ProcessAcceleratorCUDA_cfi')
-process.load("HeterogeneousCore.CUDAServices.CUDAService_cfi")
-process.load("HeterogeneousCore.CUDAServices.NVProfilerService_cfi")
+#process.load("HeterogeneousCore.CUDAServices.CUDAService_cfi")
+#process.load("HeterogeneousCore.CUDAServices.NVProfilerService_cfi")
 
 #process.load( "HLTrigger.Timer.FastTimerService_cfi" )
 
@@ -18,7 +18,7 @@ from Configuration.AlCa.GlobalTag import GlobalTag
 process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase2_realistic_T21', '')
 process.MessageLogger.cerr.FwkReport.reportEvery = 1
 process.options = cms.untracked.PSet( wantSummary = cms.untracked.bool(True) )
-process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(10))
+process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(85))
 """
 process.IgProfService = cms.Service("IgProfService",
   reportFirstEvent            = cms.untracked.int32(0),
@@ -38,8 +38,7 @@ skipEvents=cms.untracked.uint32(0)
 )
 
 
-process.NVProfilerService = cms.Service("NVProfilerService"
-)
+#process.NVProfilerService = cms.Service("NVProfilerService")
 
 """
 process.ThroughputService = cms.Service('ThroughputService',
@@ -130,8 +129,9 @@ process.demo = cms.EDProducer(
 )
 """
 
+
 process.out = cms.OutputModule("PoolOutputModule", 
-    fileName= cms.untracked.string("file:/eos/user/g/gpizzati/prim-vertex/test_cpu.root"),
+    fileName= cms.untracked.string("file:test_cpu.root"),
     outputCommands = cms.untracked.vstring(
                                 'drop *_*_*_*',
                                 'keep *_demo_*_*'
