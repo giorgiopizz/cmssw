@@ -3,40 +3,20 @@ import FWCore.ParameterSet.Config as cms
 DA_vectParameters = cms.PSet(
     algorithm   = cms.string("DA_vect"),
     TkDAClusParameters = cms.PSet(
-        coolingFactor = cms.double(0.6),  # moderate annealing speed
-        zrange = cms.double(4.),          # consider only clusters within 4 sigma*sqrt(T) of a track
-        delta_highT = cms.double(1.e-2),  # convergence requirement at high T
-        delta_lowT = cms.double(1.e-3),   # convergence requirement at low T
-        convergence_mode = cms.int32(0),  # 0 = two steps, 1 = dynamic with sqrt(T)
         Tmin = cms.double(2.0),           # end of vertex splitting
         Tpurge = cms.double(2.0),         # cleaning 
         Tstop = cms.double(0.5),          # end of annealing 
         vertexSize = cms.double(0.006),   # added in quadrature to track-z resolutions        
-        d0CutOff = cms.double(3.),        # downweight high IP tracks 
-        dzCutOff = cms.double(3.),        # outlier rejection after freeze-out (T<Tmin)       
-        zmerge = cms.double(1e-2),        # merge intermediat clusters separated by less than zmerge
-        uniquetrkweight = cms.double(0.8),# require at least two tracks with this weight at T=Tpurge
-        uniquetrkminp = cms.double(0.0)   # minimal a priori track weight for counting unique tracks
-        )
-)
-
-DA_vectGPUParameters = cms.PSet(
-    algorithm   = cms.string("DA_vect"),
-    TkDAClusParameters = cms.PSet(
         coolingFactor = cms.double(0.6),  # moderate annealing speed
-        zrange = cms.double(4.),          # consider only clusters within 4 sigma*sqrt(T) of a track
-        delta_highT = cms.double(1.e-2),  # convergence requirement at high T
-        delta_lowT = cms.double(1.e-3),   # convergence requirement at low T
-        convergence_mode = cms.int32(0),  # 0 = two steps, 1 = dynamic with sqrt(T)
-        Tmin = cms.double(2.0),           # end of vertex splitting
-        Tpurge = cms.double(2.0),         # cleaning 
-        Tstop = cms.double(0.5),          # end of annealing 
-        vertexSize = cms.double(0.006),   # added in quadrature to track-z resolutions        
         d0CutOff = cms.double(3.),        # downweight high IP tracks 
         dzCutOff = cms.double(3.),        # outlier rejection after freeze-out (T<Tmin)       
-        zmerge = cms.double(1e-2),        # merge intermediat clusters separated by less than zmerge
         uniquetrkweight = cms.double(0.8),# require at least two tracks with this weight at T=Tpurge
-        uniquetrkminp = cms.double(0.0)   # minimal a priori track weight for counting unique tracks
+        uniquetrkminp = cms.double(0.0),   # minimal a priori track weight for counting unique tracks
+        zmerge = cms.double(1e-2),        # merge intermediat clusters separated by less than zmerge
+        zrange = cms.double(4.),          # consider only clusters within 4 sigma*sqrt(T) of a track
+        convergence_mode = cms.int32(0),  # 0 = two steps, 1 = dynamic with sqrt(T)
+        delta_lowT = cms.double(1.e-3),   # convergence requirement at low T
+        delta_highT = cms.double(1.e-2)  # convergence requirement at high T
         )
 )
 
