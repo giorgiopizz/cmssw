@@ -56,6 +56,7 @@ offlinePrimaryVerticesCUDA = cms.EDProducer(
     verbose = cms.untracked.bool(False),
     TrackLabel = cms.InputTag("generalTracks"),
     beamSpotLabel = cms.InputTag("offlineBeamSpot"),
+
     TkFilterParameters = cms.PSet(
         algorithm=cms.string('filter'),
         maxNormalizedChi2 = cms.double(10.0),
@@ -112,6 +113,8 @@ trackingLowPU.toModify(offlinePrimaryVertices,
 # higher eta cut for the phase 2 tracker
 from Configuration.Eras.Modifier_phase2_tracker_cff import phase2_tracker
 phase2_tracker.toModify(offlinePrimaryVertices,
+                        TkFilterParameters = dict(maxEta = 4.0))
+phase2_tracker.toModify(offlinePrimaryVerticesCUDA,
                         TkFilterParameters = dict(maxEta = 4.0))
 
 from Configuration.Eras.Modifier_pp_on_XeXe_2017_cff import pp_on_XeXe_2017
