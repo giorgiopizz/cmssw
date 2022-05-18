@@ -548,30 +548,30 @@ __global__ void resortVerticesAndAssign(TrackForPV::TrackForPVSoA* tracks, Track
     __syncthreads();
     __shared__ float z[1024];
     __shared__ float rho[1024];
-    __shared__ unsigned int nTrueVertex;
 
    //clock_t bigstart = clock();
     __syncthreads();
 
        //clock_t start = clock();
    if (threadIdx.x == 0 && blockIdx.x == 0){ 
-        unsigned int _nTrueVertex = 0;
+        unsigned int nTrueVertex = 0;
         //unsigned int vertex_index[1024];
        //start = clock();
        size_t maxVerticesPerBlock = (int) (vertices->stride()/griddim);
-       for (unsigned int blockid = 0; blockid < griddim; blockid++){
+       for (unsigned int blockid = 0; blockid < griddim ; blockid++){
            for(unsigned int ivtx = blockid * maxVerticesPerBlock; ivtx < blockid * maxVerticesPerBlock + vertices->nTrueVertex(blockid); ivtx++)   {
                 unsigned int ivertex = vertices->order(ivtx);
                 if ((std::abs(vertices->rho(ivertex)< 10000)) && (std::abs(vertices->z(ivertex))<30)) {
-                    z[_nTrueVertex] = vertices->z(ivertex);
-                    rho[_nTrueVertex] = vertices->rho(ivertex);
+                    z[nTrueVertex] = vertices->z(ivertex);
+                    rho[nTrueVertex] = vertices->rho(ivertex);
                     // printf("Copying vertex with ivertexO: %d, in position %d, z: %f , rho: %f \tSaving it in %d with z: %f\n", ivtx, ivertex, vertices->z(ivertex), vertices->rho(ivertex), _nTrueVertex, z[nTrueVertex]);
-                    _nTrueVertex ++;
-                    if (_nTrueVertex==1023) break;
+                    nTrueVertex ++;
+                    if (nTrueVertex==1024) break;
                 }
             }
        }
-       nTrueVertex = _nTrueVertex;
+       vertices->nTrueVertex(0) = nTrueVertex;
+       //nTrueVertex = _nTrueVertex;
 //       printf("vertices : %d\n", nTrueVertex); 
 //       printf("overlapped tracks : %d\n", tracks->nTrueTracks); 
        //printf("Took %d to copy vertices\n", (int)( clock() - start));
@@ -597,6 +597,7 @@ __global__ void resortVerticesAndAssign(TrackForPV::TrackForPVSoA* tracks, Track
        //printf("Took %d to remove overlap of tracks\n", (int)( clock() - start));
     }
     __syncthreads();
+    //assert(vertices->nTrueVertex(0) < 1024);
 
     /*
     if (threadIdx.x == 0 && blockIdx.x == 0) {
@@ -613,14 +614,14 @@ __global__ void resortVerticesAndAssign(TrackForPV::TrackForPVSoA* tracks, Track
     //__syncthreads();
 
     //start = clock();
-    __shared__ uint16_t orderedIndices[1024];
+    __shared__ __restrict__ uint16_t orderedIndices[1024];
     __shared__ uint16_t sws[1024];
-    unsigned int const& nvFinal = nTrueVertex;
+    unsigned int const& nvFinal = vertices->nTrueVertex(0);
     //__shared__ unsigned int const& nvFinal;
     //if ( threadIdx.x == 0 && blockIdx.x == 0) nvFinal = nTrueVertex;
 
   #ifdef __CUDA_ARCH__
-    radixSort<float, 2>(z, orderedIndices, sws, nvFinal);     
+  radixSort<float, 2>(z, orderedIndices, sws, nvFinal); 
 //    if (threadIdx.x == 0 && blockIdx.x == 0) {
 //            printf("ivtxO,z\n");
 //            for (unsigned int ivtxO=0; ivtxO < nTrueVertex; ivtxO++){
@@ -645,8 +646,7 @@ __global__ void resortVerticesAndAssign(TrackForPV::TrackForPVSoA* tracks, Track
     // reassign tracks to
     size_t firstElement = threadIdx.x + blockIdx.x * blockDim.x; // This is going to be the vertex index
     size_t gridSize = blockDim.x * gridDim.x;
-
-    if (threadIdx.x == 0 && blockIdx.x == 0) vertices->nTrueVertex(0) = nTrueVertex;
+   // if (threadIdx.x == 0 && blockIdx.x == 0) vertices->nTrueVertex(0) = nTrueVertex;
     __syncthreads();
     // copy sorted vertices back to the SoA
     for (unsigned int ivtx=firstElement; ivtx< vertices->nTrueVertex(0); ivtx+=gridSize){
@@ -654,7 +654,6 @@ __global__ void resortVerticesAndAssign(TrackForPV::TrackForPVSoA* tracks, Track
         vertices->rho(ivtx) = rho[ivtx];
         vertices->order(ivtx) = orderedIndices[ivtx];
     } 
-
     //if (threadIdx.x == 0 && blockIdx.x == 0) (*beta) = 0.1;
     __syncthreads();
 
@@ -674,9 +673,8 @@ __global__ void resortVerticesAndAssign(TrackForPV::TrackForPVSoA* tracks, Track
 */
 
 
-
     double zrange_min_ = 0.1;
-    
+     
     for (unsigned int itrackO = firstElement; itrackO < tracks->nTrueTracks ; itrackO += gridSize){
       unsigned int itrack = tracks->order(itrackO);
 //    for (unsigned int itrack = firstElement; itrack < ntracks ; itrack+=gridSize){
@@ -736,21 +734,15 @@ __global__ void resortVerticesAndAssign(TrackForPV::TrackForPVSoA* tracks, Track
       __syncthreads(); 
    //if (threadIdx.x == 0 && blockIdx.x == 0) printf("For re assignment it took %d\n", (int) (clock() - start));
     
-   /*
-   if (threadIdx.x == 0 && blockIdx.x == 0){ 
-        printf("tracks (itrackO, itrack, kmin, kmax\n");
-        for (unsigned itrackO = 0; itrackO < tracks->nTrueTracks; itrackO++){
-            unsigned int itrack = tracks->order(itrackO);
-            printf("track %d, %d, %d %d\n", itrackO, itrack, tracks->kmin(itrack), tracks->kmax(itrack));     
-        }
-   }
-   */
+//   if (threadIdx.x == 0 && blockIdx.x == 0){ 
+//        printf("tracks (itrackO, itrack, kmin, kmax\n");
+//        for (unsigned itrackO = 0; itrackO < tracks->nTrueTracks; itrackO++){
+//            unsigned int itrack = tracks->order(itrackO);
+//            printf("track %d, %d, %d %d\n", itrackO, itrack, tracks->kmin(itrack), tracks->kmax(itrack));     
+//        }
+//   }
 
    __syncthreads();
-   /*
-   __shared__ unsigned int associationItrack[1024];
-   __shared__ unsigned int associationIvertex[1024];
-  */
 
   // if (threadIdx.x == 0 && blockIdx.x == 0) (*beta) = 2;
   __syncthreads();
@@ -777,11 +769,13 @@ __global__ void resortVerticesAndAssign(TrackForPV::TrackForPVSoA* tracks, Track
     for (auto k = kmin; k < kmax; k++) {
       double v_exp = exp(-(*beta) * std::pow( tracks->z(itrack) - vertices->z(vertices->order(k)), 2) * tracks->dz2(itrack)) ;
       sum_Z += vertices->rho(vertices->order(k)) * v_exp;
+      //sum_Z += v_exp;
     }
     double invZ = sum_Z > 1e-100 ? 1. / sum_Z : 0.0;
     for (auto k = kmin; k < kmax; k++) {
       float v_exp = exp(-(*beta) * std::pow( tracks->z(itrack) - vertices->z(vertices->order(k)), 2) * tracks->dz2(itrack)) ;
       float p = vertices->rho(vertices->order(k)) * v_exp * invZ; 
+      //float p = v_exp * invZ; 
       //if (p > p_max && p > mintrkweight_) {
       if (p > p_max && p > mintrkweight_) {
         // assign  track i -> vertex k (hard, mintrkweight_ should be >= 0.5 here
@@ -794,74 +788,72 @@ __global__ void resortVerticesAndAssign(TrackForPV::TrackForPVSoA* tracks, Track
     tracks->kmin(itrack) = iMax; 
     tracks->kmax(itrack) = iMax+1; 
 
-    /*
-    double sum_Z = z_sum_init;
+//    double sum_Z = z_sum_init;
+//
+//    for (auto k = kmin; k < kmax; k++) {
+//      vertices->exp(ivertex) = exp(-(*beta) * std::pow( tracks->z(i) - orderedZ[k], 2) * tracks->dz2(i)) ;
+//    }
+//
+//    //local_exp_list_range(y.exp_arg, y.exp, kmin, kmax);
+//
+//
+//    tracks->sum_Z(i) = z_sum_init;
+//    for (auto k = kmin; k < kmax; k++) {
+//      tracks->sum_Z(i) += vertices->rho(ivertex) * vertices->exp(ivertex);
+//    }
+//    const double invZ = tracks->sum_Z(i) > 1e-100 ? 1. / tracks->sum_Z(i) : 0.0;
+//
+//    for (auto k = kmin; k < kmax; k++) {
+//      unsigned int ivertex = vertices->order(k);
+//      double p = vertices->rho(ivertex) * vertices->exp(ivertex) *invZ; 
+//      if (p > mintrkweight_) {
+//        // assign  track i -> vertex k (hard, mintrkweight_ should be >= 0.5 here
+//        vtx_track_indices[k].push_back(i);
+//        break;
+//      }
+//    }
 
-    for (auto k = kmin; k < kmax; k++) {
-      vertices->exp(ivertex) = exp(-(*beta) * std::pow( tracks->z(i) - orderedZ[k], 2) * tracks->dz2(i)) ;
-    }
 
-    //local_exp_list_range(y.exp_arg, y.exp, kmin, kmax);
-
-
-    tracks->sum_Z(i) = z_sum_init;
-    for (auto k = kmin; k < kmax; k++) {
-      tracks->sum_Z(i) += vertices->rho(ivertex) * vertices->exp(ivertex);
-    }
-    const double invZ = tracks->sum_Z(i) > 1e-100 ? 1. / tracks->sum_Z(i) : 0.0;
-
-    for (auto k = kmin; k < kmax; k++) {
-      unsigned int ivertex = vertices->order(k);
-      double p = vertices->rho(ivertex) * vertices->exp(ivertex) *invZ; 
-      if (p > mintrkweight_) {
-        // assign  track i -> vertex k (hard, mintrkweight_ should be >= 0.5 here
-        vtx_track_indices[k].push_back(i);
-        break;
-      }
-    }
-
-  */
   }  // track loop
   //   if (threadIdx.x == 0 && blockIdx.x == 0) printf("For hard assignment it took %d\n", (int) (clock() - start));
   __syncthreads();
    //if (threadIdx.x == 0 && blockIdx.x == 0) printf("Overall it took %d for all resort\n", (int) (clock() - bigstart));
-   /*
-   if (threadIdx.x == 0 && blockIdx.x == 0){ 
-        printf("tracks vertex association (tt_index, itrack, ivertexO, track - z , ivertex z\n");
-        for (unsigned itrackO = 0; itrackO < tracks->nTrueTracks; itrackO++){
-            unsigned int itrack = tracks->order(itrackO);
-            printf("track - vertex %d, %d, %d, %f, %f\n", tracks->tt_index(itrack), itrack, tracks->kmin(itrack), tracks->z(itrack), orderedZ[tracks->kmin(itrack)]);     
-        }
-   }
-   */
+//   if (threadIdx.x == 0 && blockIdx.x == 0){ 
+//        printf("tracks vertex association (tt_index, itrack, ivertexO, track - z , ivertex z\n");
+//        for (unsigned itrackO = 0; itrackO < tracks->nTrueTracks; itrackO++){
+//            unsigned int itrack = tracks->order(itrackO);
+//            printf("track - vertex %d, %d, %d, %f, %f\n", tracks->tt_index(itrack), itrack, tracks->kmin(itrack), tracks->z(itrack), orderedZ[tracks->kmin(itrack)]);     
+//        }
+//   }
 }
 
 __global__ void bigKernel(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices, clusterParameters params, double* osumtkwt, double* beta){
-
-  __shared__ double rbeta[1];
+    
+  extern __shared__ double rbeta[];
+  double * _beta = &rbeta[blockIdx.x];
 
   initializeKernel(ntracks, tracks, vertices, params);  
   __syncthreads();
-  getBeta0Kernel(ntracks, tracks, vertices, params, rbeta);
+  getBeta0Kernel(ntracks, tracks, vertices, params, _beta);
   __syncthreads();
-//  if (threadIdx.x == 0 && blockIdx.x == 0)  printf("\n\nFinished getBeta0, \nBeta: %f \n", (float)rbeta[0]);
-  thermalizeKernel(ntracks, tracks, vertices, params, osumtkwt, beta, params.delta_highT, 0.0); // At the first iteration, rho0=0, no purging of any kind
+//  if (threadIdx.x == 0 && blockIdx.x == 0)  printf("\n\nFinished get_beta0, \nBeta: %f \n", (float)rbeta[0]);
+  thermalizeKernel(ntracks, tracks, vertices, params, osumtkwt, _beta, params.delta_highT, 0.0); // At the first iteration, rho0=0, no purging of any kind
   __syncthreads();
-//  if (threadIdx.x == 0 && blockIdx.x == 0)  printf("\n\nFinished thermalize\nBeta: %f \n", (float)rbeta[0]);
+//  if (threadIdx.x == 0 && blockIdx.x == 0)  printf("\n\nFinished thermalize\n_beta: %f \n", (float)rbeta[0]);
 
-  coolingWhileSplittingKernel(ntracks, tracks, vertices, params, osumtkwt, rbeta); // At the first iteration, rho0=0, no purging of any kind 
+  coolingWhileSplittingKernel(ntracks, tracks, vertices, params, osumtkwt, _beta); // At the first iteration, rho0=0, no purging of any kind 
   __syncthreads();
 //  if (threadIdx.x == 0 && blockIdx.x == 0)  printf("\n\nFinished cooling\n");
 
-  remergeTracksKernel(ntracks, tracks, vertices, params, osumtkwt, rbeta); 
+  remergeTracksKernel(ntracks, tracks, vertices, params, osumtkwt, _beta); 
   __syncthreads();
 //  if (threadIdx.x == 0 && blockIdx.x == 0)  printf("\n\nFinished remerge\n");
 
-  resplitTracksKernel(ntracks, tracks, vertices, params, osumtkwt, rbeta);
+  resplitTracksKernel(ntracks, tracks, vertices, params, osumtkwt, _beta);
   __syncthreads();
 //  if (threadIdx.x == 0 && blockIdx.x == 0)  printf("\n\nFinished resplit\n");
 
-  outlierRejectionKernel(ntracks, tracks, vertices, params, osumtkwt, rbeta);
+  outlierRejectionKernel(ntracks, tracks, vertices, params, osumtkwt, _beta);
   __syncthreads();
   //if (threadIdx.x == 0) printf("Beta at the end for block %d is %f\n", blockIdx.x, rbeta[0]);
 
@@ -1040,8 +1032,9 @@ void bigKernelWrapper(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, T
 //  overlapTracks<<<1,1,0,stream>>>(tracks, blockSize, gridSize);
 //  cudaCheck(cudaGetLastError());
   
-  bigKernel<<<gridSize, blockSize,0,stream>>>(ntracks, tracks, vertices, params, osumtkwt, beta);
+  bigKernel<<<gridSize, blockSize,blockSize,stream>>>(ntracks, tracks, vertices, params, osumtkwt, beta);
   cudaCheck(cudaGetLastError());
+  //resortVerticesAndAssign<<<1,blockSize,0,stream>>>(tracks, vertices, beta, params, blockSize, gridSize);
   resortVerticesAndAssign<<<1,blockSize,0,stream>>>(tracks, vertices, beta, params, blockSize, gridSize);
   cudaCheck(cudaGetLastError());
 /*
