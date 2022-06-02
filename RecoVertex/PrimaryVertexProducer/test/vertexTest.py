@@ -1,6 +1,7 @@
 import FWCore.ParameterSet.Config as cms
-from RecoVertex.PrimaryVertexProducer.OfflinePrimaryVertices_cfi import offlinePrimaryVertices
-from RecoVertex.PrimaryVertexProducer.OfflinePrimaryVerticesCUDA_cfi import offlinePrimaryVertices as offlinePrimaryVerticesCUDA
+from RecoVertex.PrimaryVertexProducer.OfflinePrimaryVertices_cfi import offlinePrimaryVertices, offlinePrimaryVerticesCUDA, offlinePrimaryVerticesDumbFitter
+#from RecoVertex.PrimaryVertexProducer.OfflinePrimaryVerticesCUDA_cfi import offlinePrimaryVertices as offlinePrimaryVerticesCUDA
+#from RecoVertex.PrimaryVertexProducer.OfflinePrimaryVerticesCUDA_cfi import offlinePrimaryVertices as offlinePrimaryVerticesDumpFitter
 import FWCore.ParameterSet.VarParsing as VarParsing
 
 from HeterogeneousCore.CUDACore.SwitchProducerCUDA import SwitchProducerCUDA
@@ -21,7 +22,7 @@ process.load('commons_cff')
 options = VarParsing.VarParsing('analysis')
 
 options.register ('n',
-                  100, # default value
+                  90, # default value
                   VarParsing.VarParsing.multiplicity.singleton, # singleton or list
                   VarParsing.VarParsing.varType.int,          # string, int, or float
                   "n")
@@ -135,7 +136,7 @@ if options.timing:
 
 
 if options.gpu:
-    process.vertex = offlinePrimaryVerticesCUDA.clone()
+    process.vertex = offlinePrimaryVerticesDumbFitter.clone()
 else:
     process.vertex = offlinePrimaryVertices.clone()
 

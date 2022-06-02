@@ -36,6 +36,7 @@ VertexAssociatorByPositionAndTracks = cms.EDProducer("VertexAssociatorByPosition
     sharedTrackFraction = cms.double(-1),
     sigmaT = cms.double(-1),
     sigmaZ = cms.double(3),
+    sigmaXY = cms.double(3),
     trackAssociation = cms.InputTag("trackingParticleRecoTrackAsssociation")
 )
 
