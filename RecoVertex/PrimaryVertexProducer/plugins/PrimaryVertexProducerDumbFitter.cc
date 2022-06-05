@@ -646,10 +646,11 @@ void PrimaryVertexProducerDumbFitter::produce(edm::Event& iEvent, const edm::Eve
 //    }
 
   // clusterize tracks in Z
+  /*
   std::sort(seltks.begin(), seltks.end(), 
     [](const reco::TransientTrack & a, const reco::TransientTrack & b) -> bool
     { 
-        return a.impactPointState().globalPosition().z() > b.impactPointState().globalPosition().z(); 
+        return (a.stateAtBeamLine().trackStateAtPCA()).position().z() > (b.stateAtBeamLine().trackStateAtPCA()).position().z(); 
     });
   std::vector<std::vector<reco::TransientTrack> > clusters;
   for (unsigned int block = 0; block < (unsigned int) std::floor(seltks.size()/512) ; block ++){
@@ -660,7 +661,8 @@ void PrimaryVertexProducerDumbFitter::produce(edm::Event& iEvent, const edm::Eve
     std::vector<std::vector<reco::TransientTrack> >&& subclusters = theTrackClusterizer->clusterize(subtracks);
     for (auto const& cluster: subclusters)  clusters.push_back(cluster); 
   }
-  //std::vector<std::vector<reco::TransientTrack> >&& clusters = theTrackClusterizer->clusterize(seltks);
+  */
+  std::vector<std::vector<reco::TransientTrack> >&& clusters = theTrackClusterizer->clusterize(seltks);
 
   if (fVerbose) {
     std::cout << " clustering returned  " << clusters.size() << " clusters  from " << seltks.size()
