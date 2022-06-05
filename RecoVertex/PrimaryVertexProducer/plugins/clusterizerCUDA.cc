@@ -1018,11 +1018,10 @@ void dumpTV(TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* verti
     std::cout << "\n\nEND VERTICES\n\n" << std::endl;
  }
 */
-
 void bigKernelWrapper(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices, double* beta, double* osumtkwt, clusterParameters params, cudaStream_t stream){
   // Initialize is vectorized across tracks
   unsigned int blockSize = 512;
-  unsigned int gridSize  = 16;
+  unsigned int gridSize  = 1;
   /*
   unsigned int blockSize = 128;
   unsigned int gridSize  = 64;
@@ -1037,6 +1036,13 @@ void bigKernelWrapper(unsigned int ntracks, TrackForPV::TrackForPVSoA* tracks, T
   //resortVerticesAndAssign<<<1,blockSize,0,stream>>>(tracks, vertices, beta, params, blockSize, gridSize);
   resortVerticesAndAssign<<<1,blockSize,0,stream>>>(tracks, vertices, beta, params, blockSize, gridSize);
   cudaCheck(cudaGetLastError());
+  /*
+    __global__ void fitVertices( TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices ){
+
+    }
+ */
+  //TrackForPV::RecoVertices<256>  
+  //fitVertices<<<nClusters, 256, 0, stream>>>(tracks, vertices);
 /*
   initializeKernel<<<gridSize, blockSize,0,stream>>>(ntracks, tracks, vertices, params);  
   cudaCheck(cudaGetLastError());

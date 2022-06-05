@@ -228,6 +228,7 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
   ////////////////////// SoA DataFormat building /////////////////////
   ////////////////////////////////////////////////////////////////////
   // We need a copy living in the host, in between steps, at least if we want to do the things "as in CPU"
+
   unsigned int ntracks = t_tks.size();
   // printf("nTracks in CPU: %u \n", ntracks); //DEBUG
   TrackForPVHeterogeneous CPUtracks(cms::cuda::make_host_unique<TrackForPV::TrackForPVSoA>(cudaStreamDefault));  // By construction we iterate over 8096 tracks, 512 vertices
@@ -238,28 +239,6 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
 
   // Hackery, to get the input in a SoA format from the start -which would happen if the tracking is done in GPU, but would need to be adapted accordingly-
   // TODO::Cleanup of this loading
-  /*
-  for (unsigned int idx=0; idx < t_tks.size() ; idx++){
-    if (idx > CPUtracks.stride()){
-        std::cout << "Error, size of tracks SoA is too small: " << CPUtracksObject->stride() << " while tracks are " << t_tks.size() << std::endl;
-        break;
-    }
-    CPUtracksObject->significance(idx) = t_tks.at(idx).stateAtBeamLine().transverseImpactParameter().significance();
-    CPUtracksObject->dxy2(idx)         = t_tks.at(idx).stateAtBeamLine().transverseImpactParameter().error()*t_tks.at(idx).stateAtBeamLine().transverseImpactParameter().error();
-    CPUtracksObject->dz2(idx)          = t_tks.at(idx).track().dzError()*t_tks.at(idx).track().dzError();
-    CPUtracksObject->pAtIP(idx)        = t_tks.at(idx).impactPointState().globalMomentum().transverse();
-    CPUtracksObject->pxAtPCA(idx)      = t_tks.at(idx).stateAtBeamLine().trackStateAtPCA().momentum().x();
-    CPUtracksObject->pyAtPCA(idx)      = t_tks.at(idx).stateAtBeamLine().trackStateAtPCA().momentum().y();
-    CPUtracksObject->pzAtPCA(idx)      = t_tks.at(idx).stateAtBeamLine().trackStateAtPCA().momentum().z();
-    CPUtracksObject->bx(idx)           = t_tks.at(idx).stateAtBeamLine().beamSpot().BeamWidthX();
-    CPUtracksObject->by(idx)           = t_tks.at(idx).stateAtBeamLine().beamSpot().BeamWidthY();
-    CPUtracksObject->z(idx)            = t_tks.at(idx).stateAtBeamLine().trackStateAtPCA().position().z();
-    CPUtracksObject->etaAtIP(idx)      = std::fabs(t_tks.at(idx).impactPointState().globalMomentum().eta());
-    CPUtracksObject->chi2(idx)         = t_tks.at(idx).normalizedChi2();
-    CPUtracksObject->nPixelHits(idx)   = t_tks.at(idx).hitPattern().pixelLayersWithMeasurement();
-    CPUtracksObject->nTrackerHits(idx) = t_tks.at(idx).hitPattern().trackerLayersWithMeasurement();
-  }
-    */
   
   unsigned int nTrueTracks = 0; 
   auto CPUosumtkwt = cms::cuda::make_host_unique<double[]>(1, cudaStreamDefault);                                         // 1/T, to be kept across iterations
@@ -335,8 +314,9 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
             }
             // If we are here, the track is to be passed to the clusterizer. So initialize the clusterizer stuff
             // really save track now!
-            if (nTrueTracks > CPUtracksObject->stride()){
-                std::cout << "Error, size of tracks SoA is too small: " << CPUtracksObject->stride() << " while tracks are " << t_tks.size() << std::endl;
+            //if (nTrueTracks > CPUtracksObject->stride()){
+            if (nTrueTracks > 1023){
+                //std::cout << "Error, size of tracks SoA is too small: " << CPUtracksObject->stride() << " while tracks are " << t_tks.size() << std::endl;
                 break;
             }
             (*CPUosumtkwtObject) += weight;
@@ -432,22 +412,22 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
   //clusterizerCUDA::dumpTV(CPUtracksObject, CPUverticesObject, gridSize);
 
   cudaCheck(cudaMemcpy(CPUbeta.get(), GPUbeta.get(), sizeof(double), cudaMemcpyDeviceToHost));
+//  cudaCheck(cudaFree(GPUverticesObject));
+ // cudaCheck(cudaFree(GPUtracksObject));
+  //cudaCheck(cudaFree(d_obj_ptr));  
 //  //std::cout << "Finished copying 2" << std::endl;
   std::vector<TransientVertex> pv = clusterizerCUDA::vertices(ntracks, CPUtracksObject, CPUverticesObject, cParams, t_tks, CPUbeta.get());
   // clusterize tracks in Z
   std::vector<std::vector<reco::TransientTrack> >&& clusters = clusterizerCUDA::clusterize(pv, cParams);
+ // cudaCheck(cudaFree(CPUverticesObject));
+ // cudaCheck(cudaFree(CPUtracksObject));
+  cudaCheck(cudaDeviceSynchronize());
   ////////////////////////////////////////////////////////////////////
   ////////////////////// Fitting on GPU //////////////////////////////
   ////////////////////////////////////////////////////////////////////
   //std::vector<reco::TransientTrack> seltks;
   // std::vector<std::vector<reco::TransientTrack> > clusters;
   
-  /* 
-  if (fVerbose) {
-    std::cout << " clustering returned  " << clusters.size() << " clusters  from " << seltks.size()
-              << " selected tracks" << std::endl;
-  }
-  */
   // std::vector<std::vector<reco::TransientTrack> > clusters;
 
   // vertex fits
@@ -486,7 +466,23 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
       } else if (!(algorithm->useBeamConstraint) && (iclus->size() > 1)) {
         v = algorithm->fitter->vertex(*iclus);
       }  // else: no fit ==> v.isValid()=False
-
+     /*
+     float x=0,y=0,z=0, wxy=0, wz=0;
+     for (const auto& itrack : *iclus){ 
+     //std::vector<reco::TransientTrack>::const_iterator itrack = iclus.begin(); itrack!= iclus.end(); itrack++) {
+            x += itrack.impactPointState().globalPosition().x() * pow(itrack.track().dxyError(),2);
+            y += itrack.impactPointState().globalPosition().y() * pow(itrack.track().dxyError(),2);
+            wxy += pow(itrack.track().dxyError(),2);
+            z += itrack.impactPointState().globalPosition().z() * pow(itrack.track().dzError(),2);
+     }
+     x /= (*iclus).size() * wxy;     
+     y /= (*iclus).size() * wxy;     
+     z /= (*iclus).size() * wz;     
+     TransientVertex v2(GlobalPoint(x,y,z), v.positionError(), (*iclus), v.totalChiSquared());
+     v = v2;
+      */
+     //std::cout << v.position().x() << ", " << x << "\t" <<  v.position().y() << ", " << y << "\t" << v.position().z() << ", " << z << "\t" << std::endl; 
+     
       // 4D vertices: add timing information
       if (f4D and v.isValid()) {
         auto err = v.positionError().matrix4D();
