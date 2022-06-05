@@ -43,6 +43,8 @@ DAClusterizerInZSubCluster_vect::DAClusterizerInZSubCluster_vect(const edm::Para
   convergence_mode_ = conf.getParameter<int>("convergence_mode");
   delta_lowT_ = conf.getParameter<double>("delta_lowT");
   delta_highT_ = conf.getParameter<double>("delta_highT");
+  block_size_ = conf.getParameter<double>("block_size");
+  overlap_frac_ = conf.getParameter<double>("overlap_frac");
 
 #ifdef DEBUG
   std::cout << "DAClusterizerInZSubCluster_vect: mintrkweight = " << mintrkweight_ << std::endl;
@@ -768,7 +770,7 @@ bool DAClusterizerInZSubCluster_vect::split(const double beta, track_t& tks, ver
 }
 
 vector<TransientVertex> DAClusterizerInZSubCluster_vect::vertices(const vector<reco::TransientTrack>& tracks) const {
-  unsigned int block_size_ = 512;
+  //unsigned int block_size_ = 512;
   vector<reco::TransientTrack> sorted_tracks;
   vector<pair<float, float>> vertices_tot; // z, rho for each vertex
   for (unsigned int i=0; i< tracks.size();i++){
@@ -778,11 +780,14 @@ vector<TransientVertex> DAClusterizerInZSubCluster_vect::vertices(const vector<r
   std::sort(sorted_tracks.begin(), sorted_tracks.end(), 
     [](const reco::TransientTrack & a, const reco::TransientTrack & b) -> bool
     { 
-        return (a.stateAtBeamLine().trackStateAtPCA()).position().z() > (b.stateAtBeamLine().trackStateAtPCA()).position().z(); 
+        return (a.stateAtBeamLine().trackStateAtPCA()).position().z() < (b.stateAtBeamLine().trackStateAtPCA()).position().z(); 
     });
-  for (unsigned int block=0; block < (unsigned int) std::floor(sorted_tracks.size() / block_size_); block++) {
+  for (unsigned int block=0; block < (unsigned int) std::floor(sorted_tracks.size() / ( block_size_ * (1 - overlap_frac_))); block++) {
     vector<reco::TransientTrack> block_tracks;
-    for (unsigned int i = block * block_size_; i < (block + 1) * block_size_ && i < sorted_tracks.size(); i++) {
+    unsigned int begin = (unsigned int) (block * block_size_ * (1 - overlap_frac_));
+    unsigned int end = (unsigned int) std::min(begin + block_size_, (unsigned int) sorted_tracks.size());
+    //for (unsigned int i = block * block_size_; i < (block + 1) * block_size_ && i < sorted_tracks.size(); i++) {
+    for (unsigned int i = begin; i < end ; i++) {
       block_tracks.push_back(sorted_tracks[i]);
     }
     if (block_tracks.size() == 0) {
@@ -957,25 +962,33 @@ vector<TransientVertex> DAClusterizerInZSubCluster_vect::vertices(const vector<r
 
     for (unsigned int ivertex = 0; ivertex < y.getSize(); ivertex++) {
       if (y.zvtx_vec[ivertex]!=0 && y.rho_vec[ivertex]!=0) {
-      vertices_tot.push_back(pair(y.zvtx_vec[ivertex], y.rho_vec[ivertex]));
+        vertices_tot.push_back(pair(y.zvtx_vec[ivertex], y.rho_vec[ivertex]));
+        //std::cout << "Found new vertex " << y.zvtx_vec[ivertex] << " , " << y.rho_vec[ivertex] << std::endl;
+      }
     }
     
   }
 
   std::sort(vertices_tot.begin(), vertices_tot.end(), [](const pair<float, float> & a, const pair<float, float> & b) -> bool
     { 
-        return a.first > b.first; 
+        return a.first < b.first; 
     });
+    /*
+    unsigned int i=0;
+    while (i<(vertices_tot.size()-1)){
+        if (vertices_tot[i] > vertices_tot[i+1]){
+            std::cout << "Vertex sorting is descent" << std::endl;
+            break;     
+        }
+        i++;
+    }
+    */
 
   // reassign tracks to vertices
   track_t&& tracks_tot = fill(tracks);
   const unsigned int nv = vertices_tot.size();
   const unsigned int nt = tracks_tot.getSize();
 
-  if (nv == 0) {
-    edm::LogWarning("DAClusterizerInZSubCluster_vect") << "empty cluster list in set_vtx_range";
-    return;
-  }
 
   for (auto itrack = 0U; itrack < nt; ++itrack) {
     double zrange = max(sel_zrange_ / sqrt(beta * tracks_tot.dz2[itrack]), zrange_min_);
@@ -1016,10 +1029,11 @@ vector<TransientVertex> DAClusterizerInZSubCluster_vect::vertices(const vector<r
     }
 
   }
+    
 
 
   double mintrkweight_ = 0.5;
-  double rho0 = nv > 1 ? 1./nv : 1.;
+  rho0 = nv > 1 ? 1./nv : 1.;
   const auto z_sum_init = rho0 * local_exp(-beta * dzCutOff_ * dzCutOff_);
   
   std::vector<std::vector<unsigned int> > vtx_track_indices(nv);
@@ -1030,21 +1044,27 @@ vector<TransientVertex> DAClusterizerInZSubCluster_vect::vertices(const vector<r
     unsigned int iMax = 10000; 
     float sum_Z = z_sum_init;
     for (auto k = kmin; k < kmax; k++) {
-      float v_exp = local_exp(-beta * Eik(tks.zpca[i], y.zvtx[k], tks.dz2[i]));
+      float v_exp = local_exp(-beta * Eik(tracks_tot.zpca[i], vertices_tot[k].first, tracks_tot.dz2[i]));
       sum_Z += vertices_tot[k].second * v_exp;
     }
     double invZ = sum_Z > 1e-100 ? 1. / sum_Z : 0.0;
     for (auto k = kmin; k < kmax; k++) {
-      float v_exp = local_exp(-beta * Eik(tks.zpca[i], y.zvtx[k], tks.dz2[i]));
+      float v_exp = local_exp(-beta * Eik(tracks_tot.zpca[i], vertices_tot[k].first, tracks_tot.dz2[i]));
       double p = vertices_tot[k].second * v_exp * invZ;
       if (p > p_max && p > mintrkweight_) {
         p_max = p;
         iMax = k;
       }
     }
-    tracks_tot.kmin[itrack] = iMax; 
-    tracks_tot.kmax[itrack]= iMax+1; 
+    if (iMax < vtx_track_indices.size()) vtx_track_indices[iMax].push_back(i);
+    //tracks_tot.kmin[i] = iMax; 
+    //tracks_tot.kmax[i]= iMax+1; 
   }
+  /*
+  for (auto itrack = 0U; itrack < nt; ++itrack) {
+        std::cout << "itrack " << itrack << " , " << tracks_tot.kmin[itrack] << " , " << tracks_tot.kmax[itrack] << std::endl;
+  }
+  */
 
   vector<TransientVertex> clusters;
 
@@ -1054,7 +1074,7 @@ vector<TransientVertex> DAClusterizerInZSubCluster_vect::vertices(const vector<r
       GlobalPoint pos(0, 0, vertices_tot[k].first);
       vector<reco::TransientTrack> vertexTracks;
       for (auto i : vtx_track_indices[k]) {
-        vertexTracks.push_back(*(tks.tt[i]));
+        vertexTracks.push_back(*(tracks_tot.tt[i]));
         //std::cout << y.zvtx[k] << "," << (*tks.tt[i]).stateAtBeamLine().trackStateAtPCA().position().z() << std::endl;
       }
       TransientVertex v(pos, dummyError, vertexTracks, 0);
@@ -1278,4 +1298,6 @@ void DAClusterizerInZSubCluster_vect::fillPSetDescription(edm::ParameterSetDescr
   desc.add<double>("uniquetrkweight", 0.8);
   desc.add<double>("uniquetrkminp", 0.0);
   desc.add<double>("zrange", 4.0);
+  desc.add<int>("block_size", 5122);
+  desc.add<double>("overlap_frac", 0.5);
 }

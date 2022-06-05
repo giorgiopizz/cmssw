@@ -1,6 +1,6 @@
 import FWCore.ParameterSet.Config as cms
 
-from RecoVertex.PrimaryVertexProducer.TkClusParameters_cff import DA_vectParameters, DA_vectGPUParameters
+from RecoVertex.PrimaryVertexProducer.TkClusParameters_cff import DA_vectParameters, DA_vectGPUParameters, DASub_vectParameters
 
 
 offlinePrimaryVertices = cms.EDProducer(
@@ -68,7 +68,7 @@ offlinePrimaryVerticesDumbFitter = cms.EDProducer(
         trackQuality = cms.string("any")
     ),
 
-    TkClusParameters = DA_vectParameters,
+    TkClusParameters = DASub_vectParameters,
 
     vertexCollections = cms.VPSet(
      [cms.PSet(label=cms.string(""),

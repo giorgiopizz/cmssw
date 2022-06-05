@@ -965,6 +965,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices(const vector<reco::Trans
     for (auto k = kmin; k < kmax; k++) {
       tks.sum_Z[i] += y.rho[k] * y.exp[k];
     }
+    /*
     const double invZ = tks.sum_Z[i] > 1e-100 ? 1. / tks.sum_Z[i] : 0.0;
     double p_max = -1;
     unsigned int iMax = 100000;
@@ -978,8 +979,22 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices(const vector<reco::Trans
     }
   if (iMax < 1024)  vtx_track_indices[iMax].push_back(i);
   }  // track loop
+    */
 
+    const double invZ = tks.sum_Z[i] > 1e-100 ? 1. / tks.sum_Z[i] : 0.0;
+
+    for (auto k = kmin; k < kmax; k++) {
+      double p = y.rho[k] * y.exp[k] * invZ;
+      if (p > mintrkweight_) {
+        // assign  track i -> vertex k (hard, mintrkweight_ should be >= 0.5 here
+        vtx_track_indices[k].push_back(i);
+        break;
+      }
+    }
+
+  }  // track loop
   //std::cout << "z vrtx,ith track" << std::endl;
+  //
   GlobalError dummyError(0.01, 0, 0.01, 0., 0., 0.01);
   for (unsigned int k = 0; k < nv; k++) {
     if (!vtx_track_indices[k].empty()) {

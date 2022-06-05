@@ -86,6 +86,9 @@ PrimaryVertexProducerDumbFitter::PrimaryVertexProducerDumbFitter(const edm::Para
   else if (clusteringAlgorithm == "DA_vect") {
     theTrackClusterizer = new DAClusterizerInZ_vect(
         conf.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<edm::ParameterSet>("TkDAClusParameters"));
+  } else if (clusteringAlgorithm == "DASub_vect") {
+    theTrackClusterizer = new DAClusterizerInZSubCluster_vect(
+        conf.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<edm::ParameterSet>("TkDAClusParameters"));
   } else if (clusteringAlgorithm == "DA2D_vect") {
     theTrackClusterizer = new DAClusterizerInZT_vect(
         conf.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<edm::ParameterSet>("TkDAClusParameters"));
@@ -115,6 +118,8 @@ PrimaryVertexProducerDumbFitter::PrimaryVertexProducerDumbFitter(const edm::Para
         algorithm.fitter = new KalmanVertexFitter();
       } else if (fitterAlgorithm == "AdaptiveVertexFitter") {
         algorithm.fitter = new AdaptiveVertexFitter(GeometricAnnealing(algoconf->getParameter<double>("chi2cutoff")));
+      } else if (fitterAlgorithm == "weightedMean") {
+        std::cout << "Using weighted mean as fitter" << std::endl;
       } else {
         throw VertexException("PrimaryVertexProducer: unknown algorithm: " + fitterAlgorithm);
       }
@@ -137,6 +142,8 @@ PrimaryVertexProducerDumbFitter::PrimaryVertexProducerDumbFitter(const edm::Para
       algorithm.fitter = new KalmanVertexFitter();
     } else if (fitterAlgorithm == "AdaptiveVertexFitter") {
       algorithm.fitter = new AdaptiveVertexFitter();
+    } else if (fitterAlgorithm == "weightedMean") {
+        std::cout << "Using weighted mean as fitter" << std::endl;
     } else {
       throw VertexException("PrimaryVertexProducerAlgorithm: unknown algorithm: " + fitterAlgorithm);
     }
