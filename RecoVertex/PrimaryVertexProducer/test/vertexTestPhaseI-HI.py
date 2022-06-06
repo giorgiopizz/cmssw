@@ -3,14 +3,18 @@ from RecoVertex.PrimaryVertexProducer.OfflinePrimaryVertices_cfi import offlineP
 #from RecoVertex.PrimaryVertexProducer.OfflinePrimaryVerticesCUDA_cfi import offlinePrimaryVertices as offlinePrimaryVerticesCUDA
 #from RecoVertex.PrimaryVertexProducer.OfflinePrimaryVerticesCUDA_cfi import offlinePrimaryVertices as offlinePrimaryVerticesDumpFitter
 import FWCore.ParameterSet.VarParsing as VarParsing
+#from Configuration.Eras.Era_Run3_noMkFit_cff import Run3
+from Configuration.Eras.Era_Run3_pp_on_PbPb_cff import Run3_pp_on_PbPb
 
 from HeterogeneousCore.CUDACore.SwitchProducerCUDA import SwitchProducerCUDA
 
-process = cms.Process("Vertexing")
+process = cms.Process("Vertexing", Run3_pp_on_PbPb)
 process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )
+process.load('Configuration.StandardSequences.Services_cff')
 process.load('FWCore.MessageService.MessageLogger_cfi')
 process.load("TrackingTools/TransientTrack/TransientTrackBuilder_cfi")
-process.load("Configuration.Geometry.GeometryIdeal_cff")
+process.load('Configuration.StandardSequences.GeometryRecoDB_cff')
+#process.load("Configuration.Geometry.GeometryIdeal_cff")
 process.load("Configuration.StandardSequences.MagneticField_cff")
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
 process.load("HeterogeneousCore.CUDAServices.CUDAService_cfi")
@@ -22,7 +26,7 @@ process.load('commons_cff')
 options = VarParsing.VarParsing('analysis')
 
 options.register ('n',
-                  90, # default value
+                  1, # default value
                   VarParsing.VarParsing.multiplicity.singleton, # singleton or list
                   VarParsing.VarParsing.varType.int,          # string, int, or float
                   "n")
@@ -50,7 +54,9 @@ options.parseArguments()
 
 from Configuration.AlCa.GlobalTag import GlobalTag
 
-process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase2_realistic_T21', '')
+#process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase1_2021_realistic', '')
+process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase1_2021_realistic_hi', '')
+#process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase2_realistic_T21', '')
 process.MessageLogger.cerr.FwkReport.reportEvery = 1
 
 suff = 'gpu'
@@ -94,10 +100,16 @@ process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(options.n))
 
 process.source = cms.Source("PoolSource",
 fileNames = cms.untracked.vstring(
-'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/7781d089-b51a-495a-b1ba-384c15e90749.root'
+#'/store/relval/CMSSW_12_1_0_pre5/RelValHSCPgluino_M-1000_TuneCP5_13TeV-pythia8/GEN-SIM-RECO/PU_121X_mcRun3_2021_realistic_v15_HighStat-v1/2580000/5073d52d-ece2-4bf3-ae32-baeec737b51d.root',
+#"/store/relval/CMSSW_12_4_0_pre3/RelValTTbarToDilepton_14TeV/GEN-SIM-RECO/PU_123X_mcRun3_2021_realistic_v14-v1/2580000/482fcd10-ed9c-4163-b6b9-c5d45f9b38d7.root",
+#"/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun3_2021_realistic_v14-v1/2580000/16ca3cdd-33b1-457e-aacf-73732649acca.root"
+#"/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun3_2021_realistic_v14-v1/2580000/02e16a6d-c980-411e-bace-21d07a891e3b.root"
+"/store/relval/CMSSW_12_4_0_pre3/RelValZEE_14_HI_2021/GEN-SIM-RECO/123X_mcRun3_2021_realistic_HI_v14-v1/2580000/8007eb37-6dfb-49d6-a191-30722eb46230.root"
+
+#'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/7781d089-b51a-495a-b1ba-384c15e90749.root'
 #'/store/relval/CMSSW_12_4_0_pre3/RelValZMM_14_HI_2021/GEN-SIM-RECO/123X_mcRun3_2021_realistic_HI_v14-v1/2580000/633b39de-a6cf-45ca-9182-96be30f293fe.root'
-,'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/f6b68ca4-5b0e-42bb-b1d0-f94480067693.root',
-'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/876a46e3-477e-4c53-8a4a-c16e7c8dee0b.root'
+#,'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/f6b68ca4-5b0e-42bb-b1d0-f94480067693.root',
+#'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/876a46e3-477e-4c53-8a4a-c16e7c8dee0b.root'
 #'file:aca7b050-5990-4576-a9ee-f41ac82e5b86.root'
 ),
 skipEvents=cms.untracked.uint32(0),
@@ -137,7 +149,6 @@ if options.timing:
 
 if options.gpu:
     process.vertex = offlinePrimaryVerticesDumbFitter.clone()
-    #process.vertex = offlinePrimaryVerticesCUDA.clone()
 else:
     process.vertex = offlinePrimaryVertices.clone()
 

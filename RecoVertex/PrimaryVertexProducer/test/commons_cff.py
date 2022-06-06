@@ -1,6 +1,20 @@
 import FWCore.ParameterSet.Config as cms
 
 ## Validation step
+"""
+tpClusterProducer = cms.EDProducer("ClusterTPAssociationProducer",
+    mightGet = cms.optional.untracked.vstring,
+    phase2OTClusterSrc = cms.InputTag("siPhase2Clusters"),
+    phase2OTSimLinkSrc = cms.InputTag("simSiPixelDigis","Tracker"),
+    pixelClusterSrc = cms.InputTag("siPixelClusters"),
+    pixelSimLinkSrc = cms.InputTag("simSiPixelDigis"),
+    simTrackSrc = cms.InputTag("g4SimHits"),
+    stripClusterSrc = cms.InputTag("siStripClusters"),
+    stripSimLinkSrc = cms.InputTag("simSiStripDigis"),
+    throwOnMissingCollections = cms.bool(True),
+    trackingParticleSrc = cms.InputTag("mix","MergedTrackTruth")
+)
+
 
 tpClusterProducer = cms.EDProducer("ClusterTPAssociationProducer",
     mightGet = cms.optional.untracked.vstring,
@@ -14,6 +28,11 @@ tpClusterProducer = cms.EDProducer("ClusterTPAssociationProducer",
     throwOnMissingCollections = cms.bool(True),
     trackingParticleSrc = cms.InputTag("mix","MergedTrackTruth")
 )
+"""
+from SimTracker.TrackerHitAssociation.tpClusterProducerDefault_cfi import tpClusterProducerDefault as _tpClusterProducerDefault
+
+tpClusterProducer = _tpClusterProducerDefault.clone()
+
 
 quickTrackAssociatorByHits = cms.EDProducer("QuickTrackAssociatorByHitsProducer",
     AbsoluteNumberOfHits = cms.bool(False),

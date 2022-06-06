@@ -88,7 +88,7 @@ PrimaryVertexProducerDumbFitter::PrimaryVertexProducerDumbFitter(const edm::Para
         conf.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<edm::ParameterSet>("TkDAClusParameters"));
   } else if (clusteringAlgorithm == "DASub_vect") {
     theTrackClusterizer = new DAClusterizerInZSubCluster_vect(
-        conf.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<edm::ParameterSet>("TkDAClusParameters"));
+        conf.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<edm::ParameterSet>("TkDASubClusParameters"));
   } else if (clusteringAlgorithm == "DA2D_vect") {
     theTrackClusterizer = new DAClusterizerInZT_vect(
         conf.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<edm::ParameterSet>("TkDAClusParameters"));
@@ -247,6 +247,9 @@ TransientVertex weightedMean(const std::vector<std::pair<GlobalPoint, GlobalPoin
         dist =  std::pow(p.first.x() - x, 2) / ( std::pow(wxy, 2) + std::pow( err(0,0), 2) );
         dist += std::pow(p.first.y() - y, 2) / ( std::pow(wxy, 2) + std::pow( err(1,1), 2) );
         dist += std::pow(p.first.z() - z, 2) / ( std::pow(wz , 2) + std::pow( err(2,2), 2) ); 
+//        dist =  std::pow(p.first.x() - x, 2) / (std::pow( err(0,0), 2) );
+//        dist += std::pow(p.first.y() - y, 2) / (std::pow( err(1,1), 2) );
+//        dist += std::pow(p.first.z() - z, 2) / (std::pow( err(2,2), 2) ); 
         //weights.push_back(dist)
 
         /*
@@ -259,7 +262,7 @@ TransientVertex weightedMean(const std::vector<std::pair<GlobalPoint, GlobalPoin
         
        //var_x += wxy * pow(p.first.x() - x, 2)
      }
-     TransientVertex v(GlobalPoint(x,y,z), err, *iclus, chi2, int((ndof_xy + ndof_z)/2));
+     TransientVertex v(GlobalPoint(x,y,z), err, *iclus, chi2, int((2 * ndof_xy + ndof_z)));
      return v;
 }
 
@@ -685,6 +688,7 @@ void PrimaryVertexProducerDumbFitter::produce(edm::Event& iEvent, const edm::Eve
     for (std::vector<std::vector<reco::TransientTrack> >::const_iterator iclus = clusters.begin();
          iclus != clusters.end();
          iclus++) {
+         /*
          if (iclus->size() <= 1){
              std::cout << "Cluster size <= 2, not using it" << std::endl;     
              continue;
@@ -693,6 +697,7 @@ void PrimaryVertexProducerDumbFitter::produce(edm::Event& iEvent, const edm::Eve
          std::vector<std::pair<GlobalPoint, GlobalPoint>> points;
          //std::vector<GlobalPoint> errors;
          if (algorithm->useBeamConstraint && validBS && (iclus->size() > 1)) {
+             std::cout << "Using BS constraint" << std::endl;
              for (const auto& itrack : *iclus){ 
                     GlobalPoint p =  itrack.stateAtBeamLine().trackStateAtPCA().position();
                     GlobalPoint err(itrack.stateAtBeamLine().transverseImpactParameter().error(), itrack.stateAtBeamLine().transverseImpactParameter().error(), itrack.track().dzError());
@@ -704,6 +709,7 @@ void PrimaryVertexProducerDumbFitter::produce(edm::Event& iEvent, const edm::Eve
             if ((v.positionError().matrix())(2,2) != (20*20)) pvs.push_back(v);
          } 
          else if (!(algorithm->useBeamConstraint) && (iclus->size() > 1)) {
+             std::cout << "Not using BS constraint" << std::endl;
             for (const auto& itrack : *iclus){ 
                     GlobalPoint p = itrack.impactPointState().globalPosition();
                     GlobalPoint err(itrack.track().dxyError(), itrack.track().dxyError(), itrack.track().dzError());
@@ -716,7 +722,65 @@ void PrimaryVertexProducerDumbFitter::produce(edm::Event& iEvent, const edm::Eve
 
          }
 
-        
+    */    
+
+
+      double sumwt = 0.;
+      double sumwt2 = 0.;
+      double sumw = 0.;
+      double meantime = 0.;
+      double vartime = 0.;
+      if (f4D) {
+        for (const auto& tk : *iclus) {
+          const double time = tk.timeExt();
+          const double err = tk.dtErrorExt();
+          const double inverr = err > 0. ? 1.0 / err : 0.;
+          const double w = inverr * inverr;
+          sumwt += w * time;
+          sumwt2 += w * time * time;
+          sumw += w;
+        }
+        meantime = sumwt / sumw;
+        double sumsq = sumwt2 - sumwt * sumwt / sumw;
+        double chisq = iclus->size() > 1 ? sumsq / double(iclus->size() - 1) : sumsq / double(iclus->size());
+        vartime = chisq / sumw;
+      }
+
+      TransientVertex v;
+      if (algorithm->useBeamConstraint && validBS && (iclus->size() > 1)) {
+        v = algorithm->fitter->vertex(*iclus, beamSpot);
+      } else if (!(algorithm->useBeamConstraint) && (iclus->size() > 1)) {
+        v = algorithm->fitter->vertex(*iclus);
+      }  // else: no fit ==> v.isValid()=False
+
+      // 4D vertices: add timing information
+      if (f4D and v.isValid()) {
+        auto err = v.positionError().matrix4D();
+        err(3, 3) = vartime;
+        auto trkWeightMap3d = v.weightMap();  // copy the 3d-fit weights
+        v = TransientVertex(v.position(), meantime, err, v.originalTracks(), v.totalChiSquared(), v.degreesOfFreedom());
+        v.weightMap(trkWeightMap3d);
+      }
+
+      if (fVerbose) {
+        if (v.isValid()) {
+          std::cout << "x,y,z";
+          if (f4D)
+            std::cout << ",t";
+          std::cout << "=" << v.position().x() << " " << v.position().y() << " " << v.position().z();
+          if (f4D)
+            std::cout << " " << v.time();
+          std::cout << " cluster size = " << (*iclus).size() << std::endl;
+        } else {
+          std::cout << "Invalid fitted vertex,  cluster size=" << (*iclus).size() << std::endl;
+        }
+      }
+
+      if (v.isValid() && (v.degreesOfFreedom() >= algorithm->minNdof) &&
+          (!validBS || (*(algorithm->vertexSelector))(v, beamVertexState)))
+        pvs.push_back(v);
+
+
     }  // end of cluster loop
 
     if (fVerbose) {
@@ -778,7 +842,6 @@ void PrimaryVertexProducerDumbFitter::produce(edm::Event& iEvent, const edm::Eve
         std::cout << std::endl;
       }
     }
-    /*
       int ivtx = 0;
         std::cout << "recvtx,#trk,chi2,ndof,x,dx,y,dy,z,dz" << std::endl;
       for (reco::VertexCollection::const_iterator v = vColl.begin(); v != vColl.end(); ++v) {
@@ -789,7 +852,6 @@ void PrimaryVertexProducerDumbFitter::produce(edm::Event& iEvent, const edm::Eve
         std::cout << std::endl;
 
       }
-    */
     iEvent.put(std::move(result), algorithm->label);
   }
 }
@@ -852,6 +914,10 @@ void PrimaryVertexProducerDumbFitter::fillDescriptions(edm::ConfigurationDescrip
       edm::ParameterSetDescription psd2;
       GapClusterizerInZ::fillPSetDescription(psd2);
       psd0.add<edm::ParameterSetDescription>("TkGapClusParameters", psd2);
+
+      edm::ParameterSetDescription psd3;
+      DAClusterizerInZSubCluster_vect::fillPSetDescription(psd3);
+      psd0.add<edm::ParameterSetDescription>("TkDASubClusParameters", psd3);
     }
     psd0.add<std::string>("algorithm", "DA_vect");
     desc.add<edm::ParameterSetDescription>("TkClusParameters", psd0);

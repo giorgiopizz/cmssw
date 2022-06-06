@@ -42,8 +42,8 @@ DA_vectGPUParameters = cms.PSet(
 
 DASub_vectParameters = cms.PSet(
     algorithm   = cms.string("DASub_vect"),
-    TkDAClusParameters = cms.PSet(
-        block_size = cms.int(512),
+    TkDASubClusParameters = cms.PSet(
+        block_size = cms.int32(512),
         overlap_frac = cms.double(0.5),
         coolingFactor = cms.double(0.6),  # moderate annealing speed
         zrange = cms.double(4.),          # consider only clusters within 4 sigma*sqrt(T) of a track

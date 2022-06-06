@@ -68,6 +68,7 @@ offlinePrimaryVerticesDumbFitter = cms.EDProducer(
         trackQuality = cms.string("any")
     ),
 
+    #TkClusParameters = DASub_vectParameters,
     TkClusParameters = DASub_vectParameters,
 
     vertexCollections = cms.VPSet(
