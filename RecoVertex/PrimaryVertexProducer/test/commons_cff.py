@@ -46,6 +46,13 @@ quickTrackAssociatorByHits = cms.EDProducer("QuickTrackAssociatorByHitsProducer"
     useClusterTPAssociation = cms.bool(True)
 )
 
+trackingParticleRecoTrackAsssociation = cms.EDProducer("TrackAssociatorEDProducer",
+    associator = cms.InputTag("quickTrackAssociatorByHits"),
+    ignoremissingtrackcollection = cms.untracked.bool(False),
+    label_tp = cms.InputTag("mix","MergedTrackTruth"),
+    label_tr = cms.InputTag("generalTracks")
+)
+
 VertexAssociatorByPositionAndTracks = cms.EDProducer("VertexAssociatorByPositionAndTracksProducer",
     absT = cms.double(-1),
     absZ = cms.double(0.1),
@@ -59,12 +66,6 @@ VertexAssociatorByPositionAndTracks = cms.EDProducer("VertexAssociatorByPosition
     trackAssociation = cms.InputTag("trackingParticleRecoTrackAsssociation")
 )
 
-trackingParticleRecoTrackAsssociation = cms.EDProducer("TrackAssociatorEDProducer",
-    associator = cms.InputTag("quickTrackAssociatorByHits"),
-    ignoremissingtrackcollection = cms.untracked.bool(False),
-    label_tp = cms.InputTag("mix","MergedTrackTruth"),
-    label_tr = cms.InputTag("generalTracks")
-)
 
 
 vertexAnalysis = cms.EDProducer("PrimaryVertexAnalyzer4PUSlimmed",

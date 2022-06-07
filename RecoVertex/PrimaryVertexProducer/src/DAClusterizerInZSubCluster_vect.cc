@@ -43,7 +43,7 @@ DAClusterizerInZSubCluster_vect::DAClusterizerInZSubCluster_vect(const edm::Para
   convergence_mode_ = conf.getParameter<int>("convergence_mode");
   delta_lowT_ = conf.getParameter<double>("delta_lowT");
   delta_highT_ = conf.getParameter<double>("delta_highT");
-  block_size_ = conf.getParameter<double>("block_size");
+  block_size_ = conf.getParameter<int>("block_size");
   overlap_frac_ = conf.getParameter<double>("overlap_frac");
 
 #ifdef DEBUG

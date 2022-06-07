@@ -842,6 +842,7 @@ void PrimaryVertexProducerDumbFitter::produce(edm::Event& iEvent, const edm::Eve
         std::cout << std::endl;
       }
     }
+    /*
       int ivtx = 0;
         std::cout << "recvtx,#trk,chi2,ndof,x,dx,y,dy,z,dz" << std::endl;
       for (reco::VertexCollection::const_iterator v = vColl.begin(); v != vColl.end(); ++v) {
@@ -852,6 +853,7 @@ void PrimaryVertexProducerDumbFitter::produce(edm::Event& iEvent, const edm::Eve
         std::cout << std::endl;
 
       }
+    */
     iEvent.put(std::move(result), algorithm->label);
   }
 }

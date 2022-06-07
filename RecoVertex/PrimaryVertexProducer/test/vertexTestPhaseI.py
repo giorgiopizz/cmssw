@@ -22,21 +22,27 @@ process.load("HeterogeneousCore.CUDAServices.CUDAService_cfi")
 process.load('Configuration.EventContent.EventContent_cff')
 process.load('DQMServices.Core.DQMStoreNonLegacy_cff')
 process.load('commons_cff')
+
+
+#process.load("SimTracker.TrackerHitAssociation.tpClusterProducer_cfi")
+#process.load("SimTracker.TrackAssociatorProducers.quickTrackAssociatorByHits_cfi")
+#process.load("SimTracker.TrackAssociatorProducers.trackAssociatorByHits_cfi")
+#process.load("SimTracker.TrackAssociation.trackingParticleRecoTrackAsssociation_cfi")
 #process.load("SimTracker.TrackAssociation.trackingParticleRecoTrackAsssociation_cff")
 #process.load("Validation.RecoTrack.associators_cff")
 #process.load("SimTracker.TrackAssociatorProducers.quickTrackAssociatorByHits_cfi")
 #process.load("SimTracker.TrackAssociatorProducers.trackAssociatorByChi2_cfi")
 #process.load("SimTracker.TrackAssociation.trackingParticleRecoTrackAsssociation_cfi")
 
-process.load('SimGeneral.MixingModule.mix_Run3_Flat55To75_PoissonOOTPU_cfi')
-process.load("SimGeneral.MixingModule.trackingTruthProducerSelection_cfi")
-process.mix.input.fileNames = cms.untracked.vstring(['/store/relval/CMSSW_12_0_0_pre4/RelValMinBias_14TeV/GEN-SIM/120X_mcRun3_2021_realistic_v2-v1/00000/1f2432c4-b04b-4be9-a5f4-d6121657ad61.root', '/store/relval/CMSSW_12_0_0_pre4/RelValMinBias_14TeV/GEN-SIM/120X_mcRun3_2021_realistic_v2-v1/00000/5188ff57-8de1-4731-958d-0206eefb725e.root', '/store/relval/CMSSW_12_0_0_pre4/RelValMinBias_14TeV/GEN-SIM/120X_mcRun3_2021_realistic_v2-v1/00000/8ffd7938-eb07-44b5-9694-ea018ac892db.root', '/store/relval/CMSSW_12_0_0_pre4/RelValMinBias_14TeV/GEN-SIM/120X_mcRun3_2021_realistic_v2-v1/00000/ace00a2c-259f-4ac1-b449-9fed3dc70e17.root', '/store/relval/CMSSW_12_0_0_pre4/RelValMinBias_14TeV/GEN-SIM/120X_mcRun3_2021_realistic_v2-v1/00000/b1db77ed-9af1-41e1-8acf-6aeb3a4ffefd.root', '/store/relval/CMSSW_12_0_0_pre4/RelValMinBias_14TeV/GEN-SIM/120X_mcRun3_2021_realistic_v2-v1/00000/e9794f10-c40e-45ad-8677-0f3f7410d966.root'])
-process.mix.playback = True
-process.trackingParticles.simHitCollections = cms.PSet( )
-process.mix.digitizers = cms.PSet(
-     mergedtruth = cms.PSet(process.trackingParticles)
-)
-for a in process.aliases: delattr(process, a)
+#process.load('SimGeneral.MixingModule.mix_Run3_Flat55To75_PoissonOOTPU_cfi')
+#process.load("SimGeneral.MixingModule.trackingTruthProducerSelection_cfi")
+#process.mix.input.fileNames = cms.untracked.vstring(['/store/relval/CMSSW_12_0_0_pre4/RelValMinBias_14TeV/GEN-SIM/120X_mcRun3_2021_realistic_v2-v1/00000/1f2432c4-b04b-4be9-a5f4-d6121657ad61.root', '/store/relval/CMSSW_12_0_0_pre4/RelValMinBias_14TeV/GEN-SIM/120X_mcRun3_2021_realistic_v2-v1/00000/5188ff57-8de1-4731-958d-0206eefb725e.root', '/store/relval/CMSSW_12_0_0_pre4/RelValMinBias_14TeV/GEN-SIM/120X_mcRun3_2021_realistic_v2-v1/00000/8ffd7938-eb07-44b5-9694-ea018ac892db.root', '/store/relval/CMSSW_12_0_0_pre4/RelValMinBias_14TeV/GEN-SIM/120X_mcRun3_2021_realistic_v2-v1/00000/ace00a2c-259f-4ac1-b449-9fed3dc70e17.root', '/store/relval/CMSSW_12_0_0_pre4/RelValMinBias_14TeV/GEN-SIM/120X_mcRun3_2021_realistic_v2-v1/00000/b1db77ed-9af1-41e1-8acf-6aeb3a4ffefd.root', '/store/relval/CMSSW_12_0_0_pre4/RelValMinBias_14TeV/GEN-SIM/120X_mcRun3_2021_realistic_v2-v1/00000/e9794f10-c40e-45ad-8677-0f3f7410d966.root'])
+#process.mix.playback = True
+#process.trackingParticles.simHitCollections = cms.PSet( )
+#process.mix.digitizers = cms.PSet(
+#     mergedtruth = cms.PSet(process.trackingParticles)
+#)
+#for a in process.aliases: delattr(process, a)
 
 
 from Configuration.AlCa.GlobalTag import GlobalTag
@@ -48,7 +54,7 @@ process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase1_2021_realistic', '
 options = VarParsing.VarParsing('analysis')
 
 options.register ('n',
-                  1, # default value
+                  10, # default value
                   VarParsing.VarParsing.multiplicity.singleton, # singleton or list
                   VarParsing.VarParsing.varType.int,          # string, int, or float
                   "n")
@@ -120,7 +126,8 @@ fileNames = cms.untracked.vstring(
 #'/store/relval/CMSSW_12_1_0_pre5/RelValHSCPgluino_M-1000_TuneCP5_13TeV-pythia8/GEN-SIM-RECO/PU_121X_mcRun3_2021_realistic_v15_HighStat-v1/2580000/5073d52d-ece2-4bf3-ae32-baeec737b51d.root',
 #"/store/relval/CMSSW_12_4_0_pre3/RelValTTbarToDilepton_14TeV/GEN-SIM-RECO/PU_123X_mcRun3_2021_realistic_v14-v1/2580000/482fcd10-ed9c-4163-b6b9-c5d45f9b38d7.root",
 #"/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun3_2021_realistic_v14-v1/2580000/16ca3cdd-33b1-457e-aacf-73732649acca.root"
-"/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun3_2021_realistic_v14-v1/2580000/02e16a6d-c980-411e-bace-21d07a891e3b.root"
+#"/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun3_2021_realistic_v14-v1/2580000/02e16a6d-c980-411e-bace-21d07a891e3b.root"
+"/store/group/offcomp_upgrade-sw/gpizzati/2021TTbarPU_reco.root"
 
 #'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/7781d089-b51a-495a-b1ba-384c15e90749.root'
 #'/store/relval/CMSSW_12_4_0_pre3/RelValZMM_14_HI_2021/GEN-SIM-RECO/123X_mcRun3_2021_realistic_HI_v14-v1/2580000/633b39de-a6cf-45ca-9182-96be30f293fe.root'
@@ -196,13 +203,19 @@ process.DQMoutput = cms.OutputModule("DQMRootOutputModule",
 process.output.fileName = 'file:test_'+suff+'.root'
 process.DQMoutput.fileName = 'file:test_dqm_'+suff+'.root'
 
+
+#process.tp = cms.Task(process.tpClusterProducer)
+#process.quickTA = cms.
 #process.tracksValidationTruth = cms.Task(process.VertexAssociatorByPositionAndTracks, process.quickTrackAssociatorByHits, process.tpClusterProducer)
 #process.pvValidation = cms.Sequence(process.vertexAnalysis,process.tracksValidationTruth)
 #process.prevalidation_step = cms.Path(process.pvValidation)
 
-process.tracksValidationTruth = cms.Sequence(process.tpClusterProducer + process.quickTrackAssociatorByHits + process.VertexAssociatorByPositionAndTracks)
-process.pvValidation = cms.Sequence(process.mix + process.tracksValidationTruth + process.vertexAnalysis)
-process.prevalidation_step = cms.Path(process.pvValidation)
+#process.tracksValidationTruth = cms.Task(process.tpClusterProducer,  process.quickTrackAssociatorByHits,  process.VertexAssociatorByPositionAndTracks , process.vertexAnalysis)
+
+
+process.tracksValidationTruth = cms.Sequence(process.tpClusterProducer *  process.quickTrackAssociatorByHits * process.trackingParticleRecoTrackAsssociation *  process.VertexAssociatorByPositionAndTracks * process.vertexAnalysis)
+process.prevalidation_step = cms.Path(process.tracksValidationTruth)
+
 
 process.DQMOfflineVertex = cms.Sequence(process.pvMonitor)
 process.dqmoffline_step = cms.EndPath(process.DQMOfflineVertex)
@@ -235,3 +248,9 @@ if options.both:
         process.vertexAnalysis.vertexRecoCollections = cms.VInputTag("vertex","vertexCUDA")
 
     process.schedule.append(process.consume_step)
+## Automatic addition of the customisation function from SimGeneral.MixingModule.fullMixCustomize_cff
+#from SimGeneral.MixingModule.fullMixCustomize_cff import setCrossingFrameOn
+#
+##call to customisation function setCrossingFrameOn imported from SimGeneral.MixingModule.fullMixCustomize_cff
+#process = setCrossingFrameOn(process)
+
