@@ -105,7 +105,8 @@ reco::VertexRecoToSimCollection VertexAssociatorByPositionAndTracks::associateRe
 
       const double tdiff = std::abs(recoVertex.t() - simVertex.position().t() * CLHEP::second);
       const double zdiff = std::abs(recoVertex.z() - simVertex.position().z());
-      const double xydiff = std::sqrt(std::pow(recoVertex.x() - simVertex.position().x(), 2) + std::pow(recoVertex.y() - simVertex.position().y(), 2));
+      //const double xydiff = std::sqrt(std::pow(recoVertex.x() - simVertex.position().x(), 2) + std::pow(recoVertex.y() - simVertex.position().y(), 2));
+      const double xydiff = 0.;
       if (zdiff < absZ_ && zdiff / recoVertex.zError() < sigmaZ_ &&
           (!useTiming || (tdiff < absT_ && tdiff / recoVertex.tError() < sigmaT_)) && (xydiff / std::sqrt( std::pow(recoVertex.xError(), 2) + std::pow(recoVertex.yError(), 2)) < sigmaXY_)) {
         auto sharedTracks = calculateVertexSharedTracks(recoVertex, simVertex, *trackRecoToSimAssociation_);
@@ -173,7 +174,8 @@ reco::VertexSimToRecoCollection VertexAssociatorByPositionAndTracks::associateSi
 
       const double tdiff = std::abs(recoVertex.t() - simVertex.position().t() * CLHEP::second);
       const double zdiff = std::abs(recoVertex.z() - simVertex.position().z());
-      const double xydiff = std::sqrt(std::pow(recoVertex.x() - simVertex.position().x(), 2) + std::pow(recoVertex.y() - simVertex.position().y(), 2));
+      //const double xydiff = std::sqrt(std::pow(recoVertex.x() - simVertex.position().x(), 2) + std::pow(recoVertex.y() - simVertex.position().y(), 2));
+      const double xydiff = 0.;
       if (zdiff < absZ_ && zdiff / recoVertex.zError() < sigmaZ_ &&
           (!useTiming || (tdiff < absT_ && tdiff / recoVertex.tError() < sigmaT_)) && (xydiff / std::sqrt( std::pow(recoVertex.xError(), 2) + std::pow(recoVertex.yError(), 2)) < sigmaXY_)) {
         auto sharedTracks = calculateVertexSharedTracks(simVertex, recoVertex, *trackSimToRecoAssociation_);

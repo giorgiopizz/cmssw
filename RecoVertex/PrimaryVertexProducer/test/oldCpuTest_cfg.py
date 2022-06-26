@@ -20,7 +20,7 @@ from Configuration.AlCa.GlobalTag import GlobalTag
 process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase2_realistic_T21', '')
 process.MessageLogger.cerr.FwkReport.reportEvery = 1
 process.options = cms.untracked.PSet( wantSummary = cms.untracked.bool(True) )
-process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(-1))
+process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(100))
 """
 process.IgProfService = cms.Service("IgProfService",
   reportFirstEvent            = cms.untracked.int32(0),

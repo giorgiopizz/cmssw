@@ -54,7 +54,7 @@ process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase1_2021_realistic', '
 options = VarParsing.VarParsing('analysis')
 
 options.register ('n',
-                  10, # default value
+                  -1, # default value
                   VarParsing.VarParsing.multiplicity.singleton, # singleton or list
                   VarParsing.VarParsing.varType.int,          # string, int, or float
                   "n")

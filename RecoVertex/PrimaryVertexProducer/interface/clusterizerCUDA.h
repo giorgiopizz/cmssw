@@ -609,7 +609,7 @@ namespace clusterizerCUDA {
         __syncthreads();
         ////////// printf("New Z1, Z2, epsilon: %1.10f %1.10f %1.10f\n", z1, z2, epsilon);
         if (abs(z2-z1) > epsilon){
-          //if (z2<=z1) printf("\n\nAttention: z2 <= z1: %f %f\n\n", z2, z1);
+          if (z2<=z1 && threadIdx.x == 0) printf("\n\nAttention: z2 <= z1: %f %f\n\n", z2, z1);
           // This we can for sure parallelize, but we need to be careful enclosing stuff on the if threadIdx.x stuff 
 
           __syncthreads();
