@@ -8,7 +8,8 @@ from Configuration.Eras.Era_Run3_pp_on_PbPb_cff import Run3_pp_on_PbPb
 
 from HeterogeneousCore.CUDACore.SwitchProducerCUDA import SwitchProducerCUDA
 
-process = cms.Process("Vertexing", Run3_pp_on_PbPb)
+#process = cms.Process("Vertexing", Run3_pp_on_PbPb)
+process = cms.Process("Vertexing")
 process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )
 process.load('Configuration.StandardSequences.Services_cff')
 process.load('FWCore.MessageService.MessageLogger_cfi')
@@ -26,7 +27,7 @@ process.load('commons_cff')
 options = VarParsing.VarParsing('analysis')
 
 options.register ('n',
-                  1, # default value
+                  -1, # default value
                   VarParsing.VarParsing.multiplicity.singleton, # singleton or list
                   VarParsing.VarParsing.varType.int,          # string, int, or float
                   "n")
@@ -104,7 +105,8 @@ fileNames = cms.untracked.vstring(
 #"/store/relval/CMSSW_12_4_0_pre3/RelValTTbarToDilepton_14TeV/GEN-SIM-RECO/PU_123X_mcRun3_2021_realistic_v14-v1/2580000/482fcd10-ed9c-4163-b6b9-c5d45f9b38d7.root",
 #"/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun3_2021_realistic_v14-v1/2580000/16ca3cdd-33b1-457e-aacf-73732649acca.root"
 #"/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun3_2021_realistic_v14-v1/2580000/02e16a6d-c980-411e-bace-21d07a891e3b.root"
-"/store/relval/CMSSW_12_4_0_pre3/RelValZEE_14_HI_2021/GEN-SIM-RECO/123X_mcRun3_2021_realistic_HI_v14-v1/2580000/8007eb37-6dfb-49d6-a191-30722eb46230.root"
+#"/store/relval/CMSSW_12_4_0_pre3/RelValZEE_14_HI_2021/GEN-SIM-RECO/123X_mcRun3_2021_realistic_HI_v14-v1/2580000/8007eb37-6dfb-49d6-a191-30722eb46230.root"
+"/store/group/offcomp_upgrade-sw/gpizzati/2021ZEEHI_reco.root"
 
 #'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/7781d089-b51a-495a-b1ba-384c15e90749.root'
 #'/store/relval/CMSSW_12_4_0_pre3/RelValZMM_14_HI_2021/GEN-SIM-RECO/123X_mcRun3_2021_realistic_HI_v14-v1/2580000/633b39de-a6cf-45ca-9182-96be30f293fe.root'
@@ -180,9 +182,12 @@ process.DQMoutput = cms.OutputModule("DQMRootOutputModule",
 process.output.fileName = 'file:test_'+suff+'.root'
 process.DQMoutput.fileName = 'file:test_dqm_'+suff+'.root'
 
-process.tracksValidationTruth = cms.Task(process.VertexAssociatorByPositionAndTracks, process.quickTrackAssociatorByHits, process.tpClusterProducer)
-process.pvValidation = cms.Sequence(process.vertexAnalysis,process.tracksValidationTruth)
-process.prevalidation_step = cms.Path(process.pvValidation)
+#process.tracksValidationTruth = cms.Task(process.VertexAssociatorByPositionAndTracks, process.quickTrackAssociatorByHits, process.tpClusterProducer)
+#process.pvValidation = cms.Sequence(process.vertexAnalysis,process.tracksValidationTruth)
+#process.prevalidation_step = cms.Path(process.pvValidation)
+
+process.tracksValidationTruth = cms.Sequence(process.tpClusterProducer *  process.quickTrackAssociatorByHits * process.trackingParticleRecoTrackAsssociation *  process.VertexAssociatorByPositionAndTracks * process.vertexAnalysis)
+process.prevalidation_step = cms.Path(process.tracksValidationTruth)
 
 process.DQMOfflineVertex = cms.Sequence(process.pvMonitor)
 process.dqmoffline_step = cms.EndPath(process.DQMOfflineVertex)

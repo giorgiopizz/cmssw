@@ -43,6 +43,9 @@ PrimaryVertexProducerCUDA::PrimaryVertexProducerCUDA(const edm::ParameterSet& co
   else if (clusteringAlgorithm == "DA_vect") {
     theTrackClusterizer = new DAClusterizerInZ_vect(
         conf.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<edm::ParameterSet>("TkDAClusParameters"));
+  } else if (clusteringAlgorithm == "DASub_vect") {
+    theTrackClusterizer = new DAClusterizerInZSubCluster_vect(
+        conf.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<edm::ParameterSet>("TkDASubClusParameters"));
   } else if (clusteringAlgorithm == "DA2D_vect") {
     theTrackClusterizer = new DAClusterizerInZT_vect(
         conf.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<edm::ParameterSet>("TkDAClusParameters"));
@@ -642,6 +645,10 @@ void PrimaryVertexProducerCUDA::fillDescriptions(edm::ConfigurationDescriptions&
       edm::ParameterSetDescription psd2;
       GapClusterizerInZ::fillPSetDescription(psd2);
       psd0.add<edm::ParameterSetDescription>("TkGapClusParameters", psd2);
+
+      edm::ParameterSetDescription psd3;
+      DAClusterizerInZSubCluster_vect::fillPSetDescription(psd3);
+      psd0.add<edm::ParameterSetDescription>("TkDASubClusParameters", psd3);
     }
     psd0.add<std::string>("algorithm", "DA_vect");
     desc.add<edm::ParameterSetDescription>("TkClusParameters", psd0);

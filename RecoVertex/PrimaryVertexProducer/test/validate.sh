@@ -4,10 +4,10 @@
 eval `scramv1 runtime -sh`
 
 cmsRun vertexTest.py
-cmsRun vertexTest.py gpu=False
+#cmsRun vertexTest.py gpu=False
 
 harvestTrackValidationPlots.py test_dqm_gpu.root -o gpu.root
-harvestTrackValidationPlots.py test_dqm_cpu.root -o cpu.root
+#harvestTrackValidationPlots.py test_dqm_cpu.root -o cpu.root
 
 rm -r plots/
 rm -r ~/plots/

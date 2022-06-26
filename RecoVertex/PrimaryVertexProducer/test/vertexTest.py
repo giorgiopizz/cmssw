@@ -22,12 +22,12 @@ process.load('commons_cff')
 options = VarParsing.VarParsing('analysis')
 
 options.register ('n',
-                  90, # default value
+                  200, # default value
                   VarParsing.VarParsing.multiplicity.singleton, # singleton or list
                   VarParsing.VarParsing.varType.int,          # string, int, or float
                   "n")
 options.register ('threads',
-                  1,
+                  24,
                   VarParsing.VarParsing.multiplicity.singleton,
                   VarParsing.VarParsing.varType.int,
                   "threads")
@@ -77,7 +77,7 @@ process.options = cms.untracked.PSet(
     makeTriggerResults = cms.obsolete.untracked.bool,
     numberOfConcurrentLuminosityBlocks = cms.untracked.uint32(0),
     numberOfConcurrentRuns = cms.untracked.uint32(1),
-    numberOfStreams = cms.untracked.uint32(0),
+    numberOfStreams = cms.untracked.uint32(options.threads),
     numberOfThreads = cms.untracked.uint32(options.threads),
     printDependencies = cms.untracked.bool(False),
     sizeOfStackForThreadsInKB = cms.optional.untracked.uint32,
@@ -95,10 +95,25 @@ process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(options.n))
 process.source = cms.Source("PoolSource",
 fileNames = cms.untracked.vstring(
 '/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/7781d089-b51a-495a-b1ba-384c15e90749.root'
-#'/store/relval/CMSSW_12_4_0_pre3/RelValZMM_14_HI_2021/GEN-SIM-RECO/123X_mcRun3_2021_realistic_HI_v14-v1/2580000/633b39de-a6cf-45ca-9182-96be30f293fe.root'
 ,'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/f6b68ca4-5b0e-42bb-b1d0-f94480067693.root',
-'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/876a46e3-477e-4c53-8a4a-c16e7c8dee0b.root'
-#'file:aca7b050-5990-4576-a9ee-f41ac82e5b86.root'
+'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/876a46e3-477e-4c53-8a4a-c16e7c8dee0b.root',
+'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/d6bb76ec-887c-44bf-bf00-5dd719dd5dff.root',
+'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/841a606b-e33f-49db-9194-bb9ff42c81ff.root',
+'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/60dbef09-8c37-47b2-a892-f5609d6e3a40.root',
+'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/38ff9d45-d60a-4efe-83f8-719de194cf64.root',
+'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/bf35cf3a-b951-4f8d-a210-3ea46c862aec.root'
+
+
+#"/store/relval/CMSSW_12_4_0_pre3/RelValZpTT_1500_14/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/7e8f544a-834c-44a8-9773-1707b289a7c8.root",
+#"/store/relval/CMSSW_12_4_0_pre3/RelValZpTT_1500_14/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/fe6452da-53cb-4f10-b490-9cf853936909.root",
+#"/store/relval/CMSSW_12_4_0_pre3/RelValZpTT_1500_14/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/0409aeb4-70e7-4ac6-8949-01107cf661ff.root",
+#"/store/relval/CMSSW_12_4_0_pre3/RelValZpTT_1500_14/GEN-SIM-RECO/PU_123X_mcRun4_realistic_v11_2026D88PU200-v1/2580000/c8456b9b-8afd-4c67-8612-1ab74f75a2ea.root"
+
+#'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/123X_mcRun4_realistic_v11_2026D88noPU-v1/2580000/084cd150-0989-4da9-bed0-7330725343ec.root',
+#'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/123X_mcRun4_realistic_v11_2026D88noPU-v1/2580000/1ca0c2f3-115c-410c-89a5-71b1e5c024d5.root',
+#'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/123X_mcRun4_realistic_v11_2026D88noPU-v1/2580000/275980fe-9e20-4709-9ff0-74ef4c485e0f.root',
+#'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/123X_mcRun4_realistic_v11_2026D88noPU-v1/2580000/2cd276f9-8f07-4a15-ac7f-481ff632fa12.root',
+#'/store/relval/CMSSW_12_4_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/123X_mcRun4_realistic_v11_2026D88noPU-v1/2580000/4cb86d46-f780-4ce7-94df-9e0039e1953b.root'
 ),
 skipEvents=cms.untracked.uint32(0),
 inputCommands = cms.untracked.vstring(
