@@ -667,7 +667,7 @@ TransientVertex weightedMeanOutlierRejection(const std::vector<std::pair<GlobalP
     err_x = 1. / s_wx;
     err_z = 1. / s_wz;
 
-    while ((niter++) < 1000){
+    while ((niter++) < 2){
         old_x = x;
         old_y = y;
         old_z = z;
