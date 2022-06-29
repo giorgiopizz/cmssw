@@ -52,7 +52,6 @@ struct CompareTwoTracks {
       //       return a.p() > b.p();
     };
 };
-
 PrimaryVertexProducerDumbFitter::PrimaryVertexProducerDumbFitter(const edm::ParameterSet& conf)
     : theTTBToken(esConsumes(edm::ESInputTag("", "TransientTrackBuilder"))), theConfig(conf) {
   fVerbose = conf.getUntrackedParameter<bool>("verbose", false);
@@ -173,7 +172,7 @@ PrimaryVertexProducerDumbFitter::PrimaryVertexProducerDumbFitter(const edm::Para
   }
 }
 
-TransientVertex weightedMean(const std::vector<std::pair<GlobalPoint, GlobalPoint>>& points, std::vector<std::vector<reco::TransientTrack>>::const_iterator iclus){
+TransientVertex weightedMean2(const std::vector<std::pair<GlobalPoint, GlobalPoint>>& points, std::vector<std::vector<reco::TransientTrack>>::const_iterator iclus){
      float x=0, y=0, z=0, s_wxy=0, s_wz=0, s2_wxy=0, s2_wz=0, wxy=0, wz=0, chi2=0;
      float ndof_z = 0, ndof_xy = 0;
      AlgebraicSymMatrix33 err;
@@ -460,8 +459,9 @@ TransientVertex weightedMeanOutlierRejectionDiffWeights(const std::vector<std::p
 }
 */
 
-TransientVertex weightedMeanOutlierRejection(const std::vector<std::pair<GlobalPoint, GlobalPoint>>& points, std::vector<std::vector<reco::TransientTrack>>::const_iterator iclus){
-     float x=0, y=0, z=0, s_wx=0, s_wz=0, s2_wx=0, s2_wz=0, wx=0, wz=0, chi2=0;
+
+TransientVertex weightedMean(const std::vector<std::pair<GlobalPoint, GlobalPoint>>& points, std::vector<std::vector<reco::TransientTrack>>::const_iterator iclus){
+     float x=0, y=0, z=0, s_wx=0, s_wz=0, wx=0, wz=0, chi2=0;
      float ndof_x = 0, ndof_y = 0, ndof_z = 0;
      float precision = 1e-24;
      AlgebraicSymMatrix33 err;
@@ -469,10 +469,60 @@ TransientVertex weightedMeanOutlierRejection(const std::vector<std::pair<GlobalP
      err(1,1) = 2 * 2;
      err(2,2) = 20 * 20; // error is 20 cm, so cov -> is 20 ^ 2
      for (const auto& p : points){ 
-            //wx = ;
             wx = p.second.x() <=  precision ? 1. / std::pow(precision,2) : 1. / std::pow(p.second.x(),2);
 
-            //wz = p.second.z();
+            wz = p.second.z() <=  precision ? 1. / std::pow(precision,2) : 1. / std::pow(p.second.z(),2);
+
+            x += p.first.x() * wx;
+            y += p.first.y() * wx;
+            z += p.first.z() * wz;
+
+            s_wx += wx;
+            s_wz += wz;
+     }
+
+     if ( s_wx == 0. || s_wz == 0. ){
+        std::cout << "Vertex fitting failed at beginning" << std::endl;
+        return TransientVertex(GlobalPoint(0,0,0), err, *iclus, 0, 0);
+     }
+     
+     x /= s_wx;     
+     y /= s_wx;     
+     z /= s_wz;  
+
+    err(0,0) = 1. / std::sqrt(s_wx);
+    err(1,1) = 1. / std::sqrt(s_wx);
+    err(2,2) = 1. / std::sqrt(s_wz);
+
+
+     float dist = 0; 
+     for (const auto& p : points){ 
+        wx = p.second.x();
+        wx =  wx <= precision ? precision : wx;
+
+        wz = p.second.z();
+        wz =  wz <= precision ? precision : wz;
+
+        dist =  std::pow(p.first.x() - x, 2) / ( std::pow(wx, 2) +  err(0,0) );
+        dist += std::pow(p.first.y() - y, 2) / ( std::pow(wx, 2) +  err(1,1) );
+        dist += std::pow(p.first.z() - z, 2) / ( std::pow(wz, 2) +  err(2,2) ); 
+        chi2 += dist;
+     }
+     TransientVertex v(GlobalPoint(x,y,z), err, *iclus, chi2, (int) ndof_x);
+     return v;
+}
+
+TransientVertex weightedMeanIterative(const std::vector<std::pair<GlobalPoint, GlobalPoint>>& points, std::vector<std::vector<reco::TransientTrack>>::const_iterator iclus){
+     float x=0, y=0, z=0, s_wx=0, s_wz=0, wx=0, wz=0, chi2=0;
+     float ndof_x = 0, ndof_y = 0, ndof_z = 0;
+     float precision = 1e-24;
+     AlgebraicSymMatrix33 err;
+     err(0,0) = 2 * 2;
+     err(1,1) = 2 * 2;
+     err(2,2) = 20 * 20; // error is 20 cm, so cov -> is 20 ^ 2
+     for (const auto& p : points){ 
+            wx = p.second.x() <=  precision ? 1. / std::pow(precision,2) : 1. / std::pow(p.second.x(),2);
+
             wz = p.second.z() <=  precision ? 1. / std::pow(precision,2) : 1. / std::pow(p.second.z(),2);
 
             x += p.first.x() * wx;
@@ -493,138 +543,42 @@ TransientVertex weightedMeanOutlierRejection(const std::vector<std::pair<GlobalP
      z /= s_wz;  
 
     float old_x, old_y, old_z;
-    //float xpull, ypull, zpull;
-    float xpull;
     int niter = 0;
-    float mu = 3.;
-    float err_x, err_z;
-    err_x = 1. / std::sqrt(s_wx);
-    //err_y = 1. / std::sqrt(s_wx);
-    err_z = 1. / std::sqrt(s_wz);
     while ((niter++) < 1000){
         old_x = x;
         old_y = y;
         old_z = z;
-        s_wx = 0; s_wz = 0; s2_wx = 0; s2_wz = 0;
+        s_wx = 0; s_wz = 0; 
         x = 0; y = 0; z = 0;
         
-        int xout = 0, zout = 0;
         for (const auto& p : points){ 
-            //wx = p.second.x();
-            wx =  p.second.x() <= precision ? std::pow(precision, 2) : std::pow(p.second.x(), 2);
+            wx = p.second.x() <=  precision ? 1. / std::pow(precision,2) : 1. / std::pow(p.second.x(),2);
 
-            //wy = wx*wx;
-            //wx = w;
-//            wy = wx*wx + err_y*err_y;
-//            wx = wx*wx + err_x*err_x;
-
-            //wz = p.second.z();
-            wz =  p.second.z() <= precision ? std::pow(precision, 2) : std::pow(p.second.z(),2);
-            //wz = wz*wz; 
-//            wz = wz*wz + err_z*err_z;
-
-            xpull  = std::pow((p.first.x() - old_x), 2) / (wx + err_x*err_x);
-            xpull += std::pow((p.first.y() - old_y), 2) / (wx + err_x*err_x);
-            xpull += std::pow((p.first.z() - old_z), 2) / (wz + err_z*err_z);
-            xpull = 1. / (1. + std::exp(-0.5 * (3*(mu * mu) - xpull)));
-            ndof_x += xpull;
- 
-            /*
-            if (niter==4){
-                std::cout << "Begin cluster" << std::endl;
-
-            } 
-            */
-//            if (std::abs(zpull)> mu ) zout++;
-//            if (std::abs(xpull)> mu ) xout++;
-
-//            err_x += std::pow(1. / (1. + std::exp(-0.5 * ((mu  * mu ) - std::pow(xpull,2)))), 1) ;
-//            err_y += std::pow(1. / (1. + std::exp(-0.5 * ((mu  * mu ) - std::pow(ypull,2)))), 1) ;
-//            err_z += std::pow(1. / (1. + std::exp(-0.5 * ((mu  * mu ) - std::pow(zpull,2)))), 1) ;
-
-
-            wx = xpull / wx;
-            //wy = wx;
-            wz = xpull / wz;
-
-//            wx *= xpull;
-//            wy *= xpull;
-//            wz *= xpull;
-
-//            wx *= 1. / (1. + std::exp(-0.5 * ((mu * mu) - std::pow(xpull,2))));
-//            wy *= 1. / (1. + std::exp(-0.5 * ((mu * mu) - std::pow(xpull,2))));
-//            wz *= 1. / (1. + std::exp(-0.5 * ((mu * mu) - std::pow(xpull,2))));
+            wz = p.second.z() <=  precision ? 1. / std::pow(precision,2) : 1. / std::pow(p.second.z(),2);
 
             x += wx * p.first.x();
             y += wx * p.first.y();
             z += wz * p.first.z();
 
-//Ã            err_x += wx * pow(p.first.x() - old_x, 2);
-//Ã            err_y += wy * pow(p.first.y() - old_y, 2);
-//Ã            err_z += wz * pow(p.first.z() - old_z, 2);
-
             s_wx += wx;
-            //s_wy += wx;
             s_wz += wz;
-
-//            s2_wx += wx * wx;
-//            s2_wy += wy * wy;
-//            s2_wz += wz * wz;
-      
-            s2_wx += wx * xpull;
-            //s2_wy += wx * xpull;
-            s2_wz += wz * xpull;
         }
-            //std::cout << "outlier % " << zout << " , " << xout << " , " << points.size() << std::endl;
         if ( s_wx == 0. || s_wz == 0. ){
             std::cout << "Vertex fitting failed" << s_wx << " , " << " , " << s_wz << std::endl;
             return TransientVertex(GlobalPoint(0,0,0), err, *iclus, 0, 0);
         }
+
         x /= s_wx;
         y /= s_wx;
         z /= s_wz;
 
-        err_x = std::sqrt(s2_wx / std::pow(s_wx,2));
-        //err_x = err_y;
-        //err_y = std::sqrt(s2_wx / std::pow(s_wx,2));
-        err_z = std::sqrt(s2_wz / std::pow(s_wz,2));
-
         if (std::abs(x - old_x) < (precision/1.) && std::abs(y - old_y) < (precision/1.) && std::abs(z - old_z) < (precision/1.)){
-//            ndof_x = (s_wx * s_wx)/s2_wx;
-//            ndof_y = (s_wy * s_wy)/s2_wy;
-//            ndof_z = (s_wz * s_wz)/s2_wz;
-
-//            err(0,0) = ( err_x / (s_wx * (ndof_x-1) ) );
-//            err(1,1) = ( err_y / (s_wy * (ndof_x-1) ) );
-//            err(2,2) = ( err_z / (s_wz * (ndof_z-1) ) );
-//
             break;
         }
     }
-//      err(0,0) = s2_wx / (s_wx);
-//      err(1,1) = s2_wy / (s_wy);
-//      err(2,2) = s2_wz / (s_wz);
-//      err(0,0) = 1. / err_x; 
-//      err(1,1) = 1. / err_y;    
-//      err(2,2) = 1. / err_z;
-//      ndof_x = points.size();
-//      ndof_y = points.size();
-//      ndof_z = points.size();
-     err(0,0) = err_x * err_x;
-     err(1,1) = err_x * err_x;
-     err(2,2) = err_z * err_z;
-//      float corr = 1.0;
-//      err(0,0) = corr*corr * s2_wx / std::pow(s_wx,2);
-//      err(1,1) = corr*corr * s2_wy / std::pow(s_wy,2);
-//      err(2,2) = corr*corr * s2_wz / std::pow(s_wz,2);
-
-//     ndof_x = (s_wx * s_wx)/s2_wx;
-//     ndof_y = (s_wy * s_wy)/s2_wy;
-//     ndof_z = (s_wz * s_wz)/s2_wz;
-//     err(0,0) = ( err_x / (s_wx * (ndof_x-1) ) );
-//     err(1,1) = ( err_y / (s_wy * (ndof_x-1) ) );
-//     err(2,2) = ( err_z / (s_wz * (ndof_z-1) ) );
-
+     err(0,0) = 1. / s_wx;
+     err(1,1) = 1. / s_wx;
+     err(2,2) = 1. / s_wz;
 
      float dist = 0; 
      for (const auto& p : points){ 
@@ -643,6 +597,153 @@ TransientVertex weightedMeanOutlierRejection(const std::vector<std::pair<GlobalP
      return v;
 }
 
+
+
+std::pair<GlobalPoint, double> nearestPoint(const GlobalPoint& vertex, reco::Track iclus){
+    double ox = iclus.vx();
+    double oy = iclus.vy();
+    double oz = iclus.vz();
+
+    double vx = iclus.px();
+    double vy = iclus.py();
+    double vz = iclus.pz();
+    
+    double opx = vertex.x() - ox;
+    double opy = vertex.y() - oy;
+    double opz = vertex.z() - oz;
+
+    double vnorm2 = (vx*vx + vy*vy + vz*vz);
+    double t = (vx * opx + vy * opy + vz * opz) / (vnorm2);
+
+    GlobalPoint p(ox + t * vx, oy + t * vy, oz + t * vz);
+    return std::pair<GlobalPoint, double>(p, std::sqrt( std::pow( p.x() - vertex.x() , 2) + std::pow( p.y() - vertex.y() , 2) + std::pow( p.z() - vertex.z() , 2) ));
+}
+
+
+TransientVertex weightedMeanOutlierRejection(const std::vector<std::pair<GlobalPoint, GlobalPoint>>& points, std::vector<reco::TransientTrack> iclus){
+     float x=0., y=0., z=0.;
+     float s_wx=0., s_wz=0.;
+     float s2_wx=0., s2_wz=0.;
+     float wx=0., wz=0., chi2=0.;
+     float ndof_x = 0.;
+     float precision = 1e-24;
+     AlgebraicSymMatrix33 err;
+     err(0,0) = 2 * 2;
+     err(1,1) = 2 * 2;
+     err(2,2) = 20 * 20; // error is 20 cm, so cov -> is 20 ^ 2
+     for (const auto& p : points){ 
+
+            wx = p.second.x() <=  precision ? 1. / std::pow(precision,2) : 1. / std::pow(p.second.x(),2);
+
+            wz = p.second.z() <=  precision ? 1. / std::pow(precision,2) : 1. / std::pow(p.second.z(),2);
+
+           x += p.first.x() * wx;
+           y += p.first.y() * wx;
+           z += p.first.z() * wz;
+
+           s_wx += wx;
+           s_wz += wz;
+     }
+
+     if ( s_wx == 0. || s_wz == 0. ){
+        std::cout << "Vertex fitting failed at beginning" << std::endl;
+        return TransientVertex(GlobalPoint(0,0,0), err, iclus, 0, 0);
+     }
+     
+     x /= s_wx;     
+     y /= s_wx;     
+     z /= s_wz;  
+//    std::pair<GlobalPoint, double> p = nearestPoint(GlobalPoint(x, y, z), (iclus)[0].track());
+//    std::cout << p.first.x() << " , " << x << " , " << p.first.y() << " , "  << y << " , " << p.first.z() << " , " << z << " , " << p.second << std::endl;
+//     return TransientVertex(p.first, err, iclus, 10, (int) 10);
+    float old_x, old_y, old_z;
+
+    float xpull;
+    int niter = 0;
+    float mu = 3.;
+
+    float err_x, err_z;
+
+    err_x = 1. / s_wx;
+    err_z = 1. / s_wz;
+
+    while ((niter++) < 1000){
+        old_x = x;
+        old_y = y;
+        old_z = z;
+        s_wx = 0; s_wz = 0; s2_wx = 0; s2_wz = 0;
+        x = 0; y = 0; z = 0;
+        
+        //for (const auto& p : points){ 
+        for (unsigned int i = 0; i < (unsigned int) points.size(); i++){ 
+            std::pair<GlobalPoint, double> p = nearestPoint(GlobalPoint(old_x, old_y, old_z), (iclus)[i].track());
+
+            wx =  points[i].second.x() <= precision ? std::pow(precision, 2) : std::pow(points[i].second.x(), 2);
+
+            wz =  points[i].second.z() <= precision ? std::pow(precision, 2) : std::pow(points[i].second.z(),2);
+            
+//            wx =  p.second <= precision ? std::pow(precision, 2) : std::pow(p.second, 2);
+//
+//            wz =  p.second <= precision ? std::pow(precision, 2) : std::pow(p.second,2);
+            xpull = 0.;
+            if ( std::pow(p.first.x() - old_x, 2) / (wx + err_x) < mu*mu && std::pow(p.first.y() - old_y, 2) / (wx + err_x) < mu*mu && std::pow(p.first.z() - old_z, 2) / (wz + err_z) < mu*mu)  xpull = 1.;
+//            xpull  = std::pow((p.first.x() - old_x), 2) / (wx + err_x);
+//            xpull += std::pow((p.first.y() - old_y), 2) / (wx + err_x);
+//            xpull += std::pow((p.first.z() - old_z), 2) / (wz + err_z);
+//            xpull = 1. / (1. + std::exp(-0.5 * (3*(mu * mu) - xpull)));
+            ndof_x += xpull;
+
+            wx = xpull / wx;
+            wz = xpull / wz;
+
+            x += wx * p.first.x();
+            y += wx * p.first.y();
+            z += wz * p.first.z();
+
+            s_wx += wx;
+            s_wz += wz;
+
+            s2_wx += wx * xpull;
+            s2_wz += wz * xpull;
+        }
+
+        if ( s_wx == 0. || s_wz == 0. ){
+            std::cout << "Vertex fitting failed" << s_wx << " , " << " , " << s_wz << std::endl;
+            return TransientVertex(GlobalPoint(0,0,0), err, iclus, 0, 0);
+        }
+        x /= s_wx;
+        y /= s_wx;
+        z /= s_wz;
+
+        err_x = (s2_wx / std::pow(s_wx, 2));
+        err_z = (s2_wz / std::pow(s_wz, 2));
+
+        if (std::abs(x - old_x) < (precision/1.) && std::abs(y - old_y) < (precision/1.) && std::abs(z - old_z) < (precision/1.)){
+            break;
+        }
+    }
+    float corr_x = 1.2, corr_z = 1.4;
+     err(0,0) = err_x * corr_x * corr_x;
+     err(1,1) = err_x * corr_x * corr_x;
+     err(2,2) = err_z * corr_z * corr_z;
+
+
+     float dist = 0; 
+     for (const auto& p : points){ 
+        wx = p.second.x();
+        wx =  wx <= precision ? precision : wx;
+
+        wz = p.second.z();
+        wz =  wz <= precision ? precision : wz;
+
+        dist =  std::pow(p.first.x() - x, 2) / ( std::pow(wx, 2) +  err(0,0) );
+        dist += std::pow(p.first.y() - y, 2) / ( std::pow(wx, 2) +  err(1,1) );
+        dist += std::pow(p.first.z() - z, 2) / ( std::pow(wz, 2) +  err(2,2) ); 
+        chi2 += dist;
+     }
+     TransientVertex v(GlobalPoint(x,y,z), err, iclus, chi2, (int) ndof_x);
+     return v;
+}
 
 TransientVertex weightedMeanOutlierRejectionVarianceAsError(const std::vector<std::pair<GlobalPoint, GlobalPoint>>& points, std::vector<std::vector<reco::TransientTrack>>::const_iterator iclus){
      float x=0, y=0, z=0, s_wx=0, s_wy=0, s_wz=0, s2_wx=0, s2_wy=0, s2_wz=0, wx=0, wy=0, wz=0, chi2=0;
@@ -1416,22 +1517,7 @@ void PrimaryVertexProducerDumbFitter::produce(edm::Event& iEvent, const edm::Eve
          std::vector<std::pair<GlobalPoint, GlobalPoint>> points;
          //std::vector<GlobalPoint> errors;
          TransientVertex v;
-             //std::cout << "Using BS constraint" << std::endl;
-             for (const auto& itrack : *iclus){ 
-                    GlobalPoint p = itrack.impactPointState().globalPosition();
-                    GlobalPoint err(itrack.track().dxyError(), itrack.track().dxyError(), itrack.track().dzError());
-                    std::pair<GlobalPoint, GlobalPoint> p2(p, err);
-                    points.push_back(p2);
-             }
-
-            v = weightedMeanOutlierRejection(points, iclus);
-          if (v.isValid() && (v.degreesOfFreedom() >= algorithm->minNdof) &&
-              (!validBS || (*(algorithm->vertexSelector))(v, beamVertexState))){
-            pvs.push_back(v);
-          }
-    /*
          if (algorithm->useBeamConstraint && validBS && (iclus->size() > 1)) {
-             //std::cout << "Using BS constraint" << std::endl;
              for (const auto& itrack : *iclus){ 
                     GlobalPoint p =  itrack.stateAtBeamLine().trackStateAtPCA().position();
                     GlobalPoint err(itrack.stateAtBeamLine().transverseImpactParameter().error(), itrack.stateAtBeamLine().transverseImpactParameter().error(), itrack.track().dzError());
@@ -1439,14 +1525,10 @@ void PrimaryVertexProducerDumbFitter::produce(edm::Event& iEvent, const edm::Eve
                     points.push_back(p2);
              }
 
-            v = weightedMeanOutlierRejection(points, iclus);
-          if (v.isValid() && (v.degreesOfFreedom() >= algorithm->minNdof) &&
-              (!validBS || (*(algorithm->vertexSelector))(v, beamVertexState))){
-            pvs.push_back(v);
-          }
+            v = weightedMeanOutlierRejection(points, *iclus);
+            if ((v.positionError().matrix())(2,2) != (20*20)) pvs.push_back(v);
          } 
          else if (!(algorithm->useBeamConstraint) && (iclus->size() > 1)) {
-            //std::cout << "Not using BS constraint" << std::endl;
             for (const auto& itrack : *iclus){ 
                     GlobalPoint p = itrack.impactPointState().globalPosition();
                     GlobalPoint err(itrack.track().dxyError(), itrack.track().dxyError(), itrack.track().dzError());
@@ -1454,12 +1536,16 @@ void PrimaryVertexProducerDumbFitter::produce(edm::Event& iEvent, const edm::Eve
                     points.push_back(p2);
             }
 
-            v = weightedMeanOutlierRejection(points, iclus);
-            //if ((v.positionError().matrix())(2,2) != (20*20)) pvs.push_back(v);
-            //
+            v = weightedMeanOutlierRejection(points, *iclus);
+            if ((v.positionError().matrix())(2,2) != (20*20)) pvs.push_back(v);
+         }
+
+         /*
           if (v.isValid() && (v.degreesOfFreedom() >= algorithm->minNdof) &&
               (!validBS || (*(algorithm->vertexSelector))(v, beamVertexState))){
             pvs.push_back(v);
+          }
+         */
 
 //            std::cout << "recvtx,#trk,chi2,ndof,x,dx,y,dy,z,dz" << std::endl;
 //          //for (reco::VertexCollection::const_iterator v = vColl.begin(); v != vColl.end(); ++v) {
@@ -1472,11 +1558,6 @@ void PrimaryVertexProducerDumbFitter::produce(edm::Event& iEvent, const edm::Eve
 //            std::cout << std::endl;
 //
 //              }
-            }
-
-         }
-            //if ((v.positionError().matrix())(2,2) != (20*20)) pvs.push_back(v);
-            */
 
 
     /*
