@@ -19,7 +19,7 @@ offlinePrimaryVertices = cms.EDProducer(
         maxD0Error = cms.double(1.0),
         maxDzError = cms.double(1.0),
         minPt = cms.double(0.0),
-        maxEta = cms.double(2.4),
+        maxEta = cms.double(4.0),
         trackQuality = cms.string("any")
     ),
 
@@ -64,7 +64,7 @@ offlinePrimaryVerticesDumbFitter = cms.EDProducer(
         maxD0Error = cms.double(1.0),
         maxDzError = cms.double(1.0),
         minPt = cms.double(0.0),
-        maxEta = cms.double(2.4),
+        maxEta = cms.double(4.0),
         trackQuality = cms.string("any")
     ),
 
@@ -112,7 +112,7 @@ offlinePrimaryVerticesCUDA = cms.EDProducer(
         maxD0Error = cms.double(1.0),
         maxDzError = cms.double(1.0),
         minPt = cms.double(0.0),
-        maxEta = cms.double(2.4),
+        maxEta = cms.double(4.0),
         trackQuality = cms.string("any")
     ),
 
