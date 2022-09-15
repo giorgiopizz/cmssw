@@ -23,7 +23,7 @@ options = VarParsing.VarParsing('analysis')
 
 options.register ('n',
                   #1000,  # default value
-                  10,  # default value
+                  -1,  # default value
                   VarParsing.VarParsing.multiplicity.singleton, # singleton or list
                   VarParsing.VarParsing.varType.int,          # string, int, or float
                   "n")
@@ -166,7 +166,8 @@ fileNames = cms.untracked.vstring(
 ),
 skipEvents=cms.untracked.uint32(0),
 inputCommands = cms.untracked.vstring(
-        'keep *','drop *_offlinePrimaryVertices_*_*'
+        #'keep *','drop *_offlinePrimaryVertices_*_*'
+        'keep *'
     )
 )
 
@@ -198,15 +199,19 @@ if options.timing:
         )
 
 
+"""
 if options.gpu:
     #process.vertex = offlinePrimaryVerticesDumbFitter.clone(TkFilterParameters(maxEta = cms.double(4.0)))
     process.vertex = offlinePrimaryVerticesDumbFitter.clone()
     #process.vertex = offlinePrimaryVerticesCUDA.clone()
 else:
     process.vertex = offlinePrimaryVertices.clone()
-
 process.vertexAnalysis.vertexRecoCollections  = cms.VInputTag("vertex")
 process.pvMonitor.vertexLabel = cms.InputTag("vertex")
+"""
+
+process.vertexAnalysis.vertexRecoCollections  = cms.VInputTag("offlinePrimaryVertices")
+process.pvMonitor.vertexLabel = cms.InputTag("offlinePrimaryVertices")
 
 
 if options.both:
@@ -242,9 +247,10 @@ process.DQMOfflineVertex = cms.Sequence(process.pvMonitor)
 process.dqmoffline_step = cms.EndPath(process.DQMOfflineVertex)
 process.DQMoutput_step = cms.EndPath(process.DQMoutput)
 
-process.vertexing_step = cms.Path(process.vertex)
+#process.vertexing_step = cms.Path(process.vertex)
 process.output_step = cms.EndPath(process.output)
 
+"""
 process.schedule = cms.Schedule(process.vertexing_step)
 if options.timing:
 
@@ -254,7 +260,8 @@ if options.timing:
 
 else:
     process.schedule = cms.Schedule(process.vertexing_step,process.prevalidation_step,process.dqmoffline_step,process.DQMoutput_step,process.output_step)
-
+"""
+process.schedule = cms.Schedule(process.prevalidation_step,process.dqmoffline_step,process.DQMoutput_step,process.output_step)
 
 if options.both:
 
