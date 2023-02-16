@@ -354,9 +354,10 @@ public:
                            std::unique_ptr<nanoaod::FlatTable>& outRwgt,
                            std::unique_ptr<nanoaod::FlatTable>& outNamed,
                            std::unique_ptr<nanoaod::FlatTable>& outPS) const {
-    bool lheDebug = debug_.exchange(
-        false);  // make sure only the first thread dumps out this (even if may still be mixed up with other output, but nevermind)
-
+    //bool lheDebug = debug_.exchange(
+    //    false);  // make sure only the first thread dumps out this (even if may still be mixed up with other output, but nevermind)
+    bool lheDebug = true;
+    
     const std::vector<std::string>& scaleWeightIDs = weightChoice->scaleWeightIDs;
     const std::vector<std::string>& pdfWeightIDs = weightChoice->pdfWeightIDs;
     const std::vector<std::string>& rwgtWeightIDs = weightChoice->rwgtIDs;
@@ -521,8 +522,9 @@ public:
   std::shared_ptr<DynamicWeightChoice> globalBeginRun(edm::Run const& iRun, edm::EventSetup const&) const override {
     edm::Handle<LHERunInfoProduct> lheInfo;
 
-    bool lheDebug = debugRun_.exchange(
-        false);  // make sure only the first thread dumps out this (even if may still be mixed up with other output, but nevermind)
+    //bool lheDebug = debugRun_.exchange(
+    //    false);  // make sure only the first thread dumps out this (even if may still be mixed up with other output, but nevermind)
+    bool lheDebug = true;
     auto weightChoice = std::make_shared<DynamicWeightChoice>();
 
     // getByToken throws since we're not in the endRun (see https://github.com/cms-sw/cmssw/pull/18499)
@@ -818,6 +820,12 @@ public:
                   std::cout << "    " << lines[iLine];
                 if (std::regex_search(lines[iLine], groups, rwgt)) {
                   std::string rwgtID = groups.str(1);
+                  
+                  // map to lower case the rwgtID since in LHEProduct thery are saved as lower
+                  for (auto it = rwgtID.begin(); it != rwgtID.end(); ++ it)
+                      *it = std::tolower(*it);
+                  
+                  
                   if (lheDebug)
                     std::cout << "    >>> LHE reweighting weight: " << rwgtID << std::endl;
                   if (std::find(lheReweighingIDs.begin(), lheReweighingIDs.end(), rwgtID) == lheReweighingIDs.end()) {
