@@ -382,7 +382,7 @@ public:
       if (mRwgt != rwgtWeightIDs.end()){
         wRwgt[mRwgt - rwgtWeightIDs.begin()] = weight.wgt / w0;
       } else {
-        std::cout << "Could find reweight id for " << weight.id << std::endl;
+        std::cout << "Could not find reweight id for " << weight.id << std::endl;
       }
         
       auto mNamed = std::find(namedWeightIDs_.begin(), namedWeightIDs_.end(), weight.id);
@@ -770,10 +770,12 @@ public:
                 if (std::regex_search(lines[iLine], groups, rwgt)) {
                   std::string rwgtID = groups.str(1);
                   
+                  /*
                   // map to lower case the rwgtID since in LHEProduct thery are saved as lower
                   for (auto it = rwgtID.begin(); it != rwgtID.end(); ++ it)
                       *it = std::tolower(*it);
-
+                  */
+                  
                   if (lheDebug)
                     std::cout << "    >>> LHE reweighting weight: " << rwgtID << std::endl;
                   if (std::find(lheReweighingIDs.begin(), lheReweighingIDs.end(), rwgtID) == lheReweighingIDs.end()) {
@@ -821,10 +823,11 @@ public:
                 if (std::regex_search(lines[iLine], groups, rwgt)) {
                   std::string rwgtID = groups.str(1);
                   
+                  /*
                   // map to lower case the rwgtID since in LHEProduct thery are saved as lower
                   for (auto it = rwgtID.begin(); it != rwgtID.end(); ++ it)
                       *it = std::tolower(*it);
-                  
+                  */
                   
                   if (lheDebug)
                     std::cout << "    >>> LHE reweighting weight: " << rwgtID << std::endl;
