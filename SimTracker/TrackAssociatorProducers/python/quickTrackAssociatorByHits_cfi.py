@@ -4,12 +4,14 @@ quickTrackAssociatorByHits = cms.EDProducer("QuickTrackAssociatorByHitsProducer"
 	AbsoluteNumberOfHits = cms.bool(False),
 	Cut_RecoToSim = cms.double(0.75),
 	SimToRecoDenominator = cms.string('reco'), # either "sim" or "reco"
-	Quality_SimToReco = cms.double(0.5),
-	Purity_SimToReco = cms.double(0.75),
-	ThreeHitTracksAreSpecial = cms.bool(True),
-        PixelHitWeight = cms.double(1.0),
-        useClusterTPAssociation = cms.bool(True),
-        cluster2TPSrc = cms.InputTag("tpClusterProducer")
+	Quality_SimToReco = cms.double(0.2),
+	Purity_SimToReco = cms.double(0.6),
+	ThreeHitTracksAreSpecial = cms.bool(False),
+    PixelHitWeight = cms.double(1.0),
+    useClusterTPAssociation = cms.bool(True),
+    UseGrouped = cms.bool(False),
+    UseSplitting = cms.bool(False),
+    cluster2TPSrc = cms.InputTag("tpClusterProducer")
 )
 
 quickTrackAssociatorByHitsTrackerHitAssociator = quickTrackAssociatorByHits.clone(

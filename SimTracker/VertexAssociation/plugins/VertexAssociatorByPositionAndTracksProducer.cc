@@ -91,6 +91,10 @@ void VertexAssociatorByPositionAndTracksProducer::produce(edm::StreamID,
       edm::LogWarning("PrimaryVertexAnalyzer4PUSlimmed") << "trackSimToRecoAssociation is not available in the event";
     return;
   }
+   // DEBUG
+  if (sharedTrackFraction_ > 0.0)
+    std::cout << "\nUsing track association for vertex\n\n";
+
   if (sigmaT_ < 0.0) {
     impl = std::make_unique<VertexAssociatorByPositionAndTracks>(&(iEvent.productGetter()),
                                                                  absZ_,

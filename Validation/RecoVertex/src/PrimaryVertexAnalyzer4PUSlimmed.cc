@@ -1138,6 +1138,7 @@ void PrimaryVertexAnalyzer4PUSlimmed::matchReco2SimVertices(std::vector<recoPrim
         vrec->sim_vertices_num_shared_tracks.push_back(calculateVertexSharedTracks(*(vrec->recVtx), *tv, *r2s_));
       }
     }
+    assert(vrec->sim_vertices.size() == vrec->sim_vertices_internal.size());
 
     if (verbose_) {
       for (auto v : vrec->sim_vertices) {
@@ -1346,7 +1347,18 @@ void PrimaryVertexAnalyzer4PUSlimmed::analyze(const edm::Event& iEvent, const ed
             if (genPVMatchedToRecoPV) {
               auto pv = recopv[0];
               assert(pv.recVtx == &(*iv));
+              // assert(pv.sim_vertices_internal.size() != 0);
+              // if (pv.sim_vertices_internal.size() == 0){
+              //   std::cout << "No sim vertices internal!\n" ;
+              //   // break;
+              //   continue;
+              // }
+              if (pv.sim_vertices_internal.size() != 0){
               fillResolutionAndPullHistograms(label, num_pileup_vertices, pv, true);
+              }
+              else{
+                std::cout << "No sim vertices internal!\n" ;
+              }
             }
             genpv_position_in_reco_collection = pv_position_in_reco_collection;
             break;

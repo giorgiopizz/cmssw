@@ -14,6 +14,248 @@
 #include "DataFormats/BeamSpot/interface/BeamSpot.h"
 
 #include "RecoVertex/VertexTools/interface/GeometricAnnealing.h"
+#include <algorithm>
+#include <numeric>
+
+constexpr double vertexSize_ = 1 * 0.006;  //0.006;
+constexpr uint neighboursCore = 2;
+constexpr double tmin = 2.0;
+
+double myDistance(double z1, double err1, double z2, double err2) {
+  return (std::pow(z1 - z2, 2) / (std::pow(err1, 2) + std::pow(err2, 2)));
+}
+bool passDistance(double z1, double err1, double z2, double err2) { return myDistance(z1, err1, z2, err2) < tmin; }
+
+std::vector<uint> find_neighbours(
+    std::vector<double>& zs, std::vector<double>& errs, std::vector<bool>& core, uint i, bool onlyCore) {
+  std::vector<uint> ret;
+  for (auto j = 0U; j < zs.size(); j++) {
+    if (i == j)
+      continue;
+    if (onlyCore && !core[j])
+      continue;
+    if (passDistance(zs[i], errs[i], zs[j], errs[j]))
+      ret.push_back(j);
+  }
+  return ret;
+}
+
+std::tuple<double, double> computeClusterCenter(std::vector<uint>& cluster, std::vector<double>& zs, std::vector<double>& errs) {
+  double center = 0;
+  double weights = 0;
+  for (auto i = 0U; i < cluster.size(); i++) {
+    uint ind = cluster[i];
+    center += zs[ind] / std::pow(errs[ind], 2);
+    weights += 1.0 / std::pow(errs[ind], 2);
+  }
+  return {center / weights, 1.0 / std::sqrt(weights)};
+}
+
+std::vector<uint> updateCluster(std::vector<uint>&& cluster,
+                                std::vector<bool>& assigned,
+                                std::vector<double>& zs,
+                                std::vector<double>& errs,
+                                std::vector<bool>& core,
+                                uint i,
+                                bool onlyCore,
+                                double z_cluster,
+                                double err_cluster) {
+  // for (auto i = 0; i < cluster.size())
+
+  auto neighbours = find_neighbours(zs, errs, core, i, onlyCore);  // find all neighbours that are core
+  for (auto j = 0U; j < neighbours.size(); j++) {
+    // if (std::find(cluster.begin(), cluster.end(), neighbours[j]) == cluster.end()) continue;
+    uint ind = neighbours[j];
+    if (assigned[ind])
+      continue;
+    if (!passDistance(z_cluster, err_cluster, zs[ind], errs[ind]))
+      continue;  // do not add tracks not compatible with cluster
+    assigned[ind] = true;
+    cluster.push_back(neighbours[j]);
+    auto [ center, err ] = computeClusterCenter(cluster, zs, errs);
+    // cluster = updateCluster(std::move(cluster), assigned, zs, errs, core, neighbours[j], onlyCore, center, err);
+    cluster = updateCluster(std::move(cluster), assigned, zs, errs, core, neighbours[j], onlyCore, center, err);
+  }
+
+  return cluster;
+}
+
+template <typename T>
+std::vector<T> reorder(std::vector<T>&& vec, std::vector<uint>& ind) {
+  std::vector<T> ret(vec.size());
+  for (auto i = 0U; i < vec.size(); i++) {
+    ret[i] = vec[ind[i]];
+  }
+  return ret;
+}
+
+std::vector<std::vector<reco::TransientTrack>> clusterize(std::vector<reco::TransientTrack>& tracks) {
+  // prepare track data for clustering
+  // track_t tks;
+  // double sumtkwt = 0.;
+  // auto const& t_mom = (*it).stateAtBeamLine().trackStateAtPCA().momentum();
+  std::vector<double> zs, errs;
+  std::vector<const reco::TransientTrack*> tt;
+  for (auto it = tracks.begin(); it != tracks.end(); it++) {
+    if (!(*it).isValid())
+      continue;
+    double t_tkwt = 1.;
+    double t_z = ((*it).stateAtBeamLine().trackStateAtPCA()).position().z();
+    if (std::fabs(t_z) > 1000.)
+      continue;
+    auto const& t_mom = (*it).stateAtBeamLine().trackStateAtPCA().momentum();
+    //  get the beam-spot
+    reco::BeamSpot beamspot = (it->stateAtBeamLine()).beamSpot();
+    double t_dz2 = std::pow((*it).track().dzError(), 2)  // track errror
+                   + (std::pow(beamspot.BeamWidthX() * t_mom.x(), 2) + std::pow(beamspot.BeamWidthY() * t_mom.y(), 2)) *
+                         std::pow(t_mom.z(), 2) / std::pow(t_mom.perp2(), 2)  // beam spot width
+                   + std::pow(vertexSize_, 2);  // intrinsic vertex size, safer for outliers and short lived decays
+    if (edm::isNotFinite(t_dz2) || t_dz2 < std::numeric_limits<double>::min())
+      continue;
+    zs.push_back(t_z);
+    errs.push_back(std::sqrt(t_dz2));
+    tt.push_back(&(*it));
+  }
+  assert(zs.size() == errs.size());
+
+  //sort tracks
+  std::vector<uint> indices(zs.size());
+  std::iota(indices.begin(), indices.end(), 0);
+  std::sort(indices.begin(), indices.end(), [&](uint A, uint B) -> bool { return zs[A] < zs[B]; });
+  zs = reorder<double>(std::move(zs), indices);
+  errs = reorder<double>(std::move(errs), indices);
+  tt = reorder<const reco::TransientTrack*>(std::move(tt), indices);
+  // for (auto i = 0U; i < zs.size(); i++){
+  //   std::cout << "Track "<< i << " "<< zs[i] << "\n";
+  // }
+
+  std::vector<bool> core(zs.size());
+  std::vector<bool> assigned(zs.size(), false);
+  std::vector<double> neighbours(zs.size(), 0.0);
+  for (auto i = 0U; i < zs.size(); i++) {
+    // uint neighbours = 0;
+    for (auto j = 0U; j < zs.size(); j++) {
+      if (i == j)
+        continue;
+      if (passDistance(zs[i], errs[i], zs[j], errs[j]))
+        neighbours[i]++;
+    }
+    core[i] = (neighbours[i] >= neighboursCore);
+    neighbours[i] *= 1 / std::pow(errs[i], 1/4);
+    // core.push_back(neighbours >= neighboursCore);
+    // assigned.push_back(false);
+  }
+
+  // indices.clear();
+  // indices.resize(zs.size());
+  std::iota(indices.begin(), indices.end(), 0);
+  std::sort(indices.begin(), indices.end(), [&](uint A, uint B) -> bool { return neighbours[A] > neighbours[B]; });
+  std::vector<std::vector<uint>> clusters;
+  // add only core elements to clusters
+  for (auto i = 0U; i < zs.size(); i++) {
+    uint ind = indices[i];
+    if (!core[ind])
+      continue;
+    if (assigned[ind])
+      continue;
+    assigned[ind] = true;
+    std::vector<uint> cluster;
+    cluster.push_back(ind);
+    // auto [ center, err ] = computeClusterCenter(cluster, zs, errs);
+    cluster = updateCluster(std::move(cluster), assigned, zs, errs, core, ind, true, zs[ind], errs[ind]);
+
+    clusters.push_back(cluster);
+  }
+
+  std::vector<double> z_clusters(clusters.size());
+  std::vector<double> err_clusters(clusters.size());
+  for (auto i = 0U; i < z_clusters.size(); i++) {
+    // double center = 0;
+    // double weights = 0;
+    // for (auto j = 0U; j < clusters[i].size(); j++) {
+    //   auto idx = clusters[i][j];
+    //   center += zs[idx] / std::pow(errs[idx], 2);
+    //   weights += 1.0 / std::pow(errs[idx], 2);
+    // }
+    auto [center, err] = computeClusterCenter(clusters[i], zs, errs);
+    z_clusters[i] = center;
+    err_clusters[i] = err;
+//    z_clusters[i] = center / weights;
+//    err_clusters[i] = 1.0 / std::sqrt(weights);
+  }
+
+  // add non core elements
+  for (auto i = 0U; i < zs.size(); i++) {
+    if (core[i])
+      continue;
+    if (assigned[i])
+      continue;
+    double minDist = 10000;
+    uint minClust = 0;
+    for (auto clustIdx = 0U; clustIdx < clusters.size(); clustIdx++) {
+      double currDist = myDistance(zs[i], errs[i], z_clusters[clustIdx], err_clusters[clustIdx]);
+      if (currDist < minDist) {
+        minDist = currDist;
+        minClust = clustIdx;
+      }
+    }
+    if (minDist < tmin) {
+      clusters[minClust].push_back(i);
+      assigned[i] = true;
+    }
+  }
+
+
+  // // split vertices
+  // for (auto i = 0U; i < z_clusters.size(); i++) {
+
+
+  /*
+  // add non core elements
+  for (auto clustIdx = 0U; clustIdx < clusters.size(); clustIdx++) {
+    uint clustSize = clusters[clustIdx].size();
+    for (auto i = 0U; i < clustSize; i++) {
+      uint idx = clusters[clustIdx][i];
+      if (!core[idx])
+        continue;                                                     // should I really check?
+      auto neighbours = find_neighbours(zs, errs, core, idx, false);  // find all neighbours that are core
+      for (auto newIdx : neighbours) {
+        if (assigned[newIdx])
+          continue;
+        clusters[clustIdx].push_back(newIdx);
+        assigned[newIdx] = true;
+      }
+    }
+  }
+  */
+  // for (auto i = 0U; i < zs.size(); i++){
+  //   if (assigned[i]) continue;
+
+  //   auto neighbours = find_neighbours(zs, errs, core, i, onlyCore); // find all neighbours that are core
+
+  //   cluster = updateCluster(std::move(cluster), assigned, zs, errs, core, i, true);
+
+  //   clusters.push_back(cluster);
+  // }
+
+  std::vector<std::vector<reco::TransientTrack>> ret;
+  for (auto clustIdx = 0U; clustIdx < clusters.size(); clustIdx++) {
+    std::vector<reco::TransientTrack> cluster;
+    // std::cout << "\nBegin of cluster " << clustIdx << "\n";
+    for (auto i = 0U; i < clusters[clustIdx].size(); i++) {
+      uint idx = clusters[clustIdx][i];
+      // cluster.push_back(tracks[idx]);
+      cluster.push_back(*tt[idx]);
+      // std::cout << "Track " << zs[idx] << " " << errs[idx] << "\n";
+    }
+    // if (clusters[clustIdx].size()>=2){
+    // std::cout << "Track 0-1 distance" << zs[] << " " << errs[i] << "\n";
+    // }
+    ret.push_back(cluster);
+  }
+
+  return ret;
+}
 
 PrimaryVertexProducer::PrimaryVertexProducer(const edm::ParameterSet& conf)
     : theTTBToken(esConsumes(edm::ESInputTag("", "TransientTrackBuilder"))), theConfig(conf) {
@@ -184,6 +426,43 @@ void PrimaryVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup& i
 
   // clusterize tracks in Z
   std::vector<std::vector<reco::TransientTrack>>&& clusters = theTrackClusterizer->clusterize(seltks);
+
+  //std::vector<std::vector<reco::TransientTrack>>&& clusters = clusterize(seltks);
+
+  // for (auto clustIdx = 0U; clustIdx < clusters.size(); clustIdx++) {
+  //   // std::vector<reco::TransientTrack> cluster;
+  //   std::cout << "\nBegin of cluster " << clustIdx << "\n";
+  //   for (auto i = 0U; i < clusters[clustIdx].size(); i++) {
+  //     auto track = clusters[clustIdx][i];
+  //     auto z = ((track).stateAtBeamLine().trackStateAtPCA()).position().z();
+  //     auto const& t_mom = track.stateAtBeamLine().trackStateAtPCA().momentum();
+  //     reco::BeamSpot beamspot = (track.stateAtBeamLine()).beamSpot();
+  //     double t_dz2 = std::pow(track.track().dzError(), 2)  // track errror
+  //                    +
+  //                    (std::pow(beamspot.BeamWidthX() * t_mom.x(), 2) + std::pow(beamspot.BeamWidthY() * t_mom.y(), 2)) *
+  //                        std::pow(t_mom.z(), 2) / std::pow(t_mom.perp2(), 2)  // beam spot width
+  //                    + std::pow(vertexSize_, 2);  // intrinsic vertex size, safer for outliers and short lived decays
+  //     std::cout << "Track " << z << " " << t_dz2 << "\n";
+  //   }
+  // }
+  // std::cout << "\n\nCorrect clustering\n";
+  // clusters = theTrackClusterizer->clusterize(seltks);
+  // for (auto clustIdx = 0U; clustIdx < clusters.size(); clustIdx++) {
+  //   // std::vector<reco::TransientTrack> cluster;
+  //   std::cout << "\nBegin of cluster " << clustIdx << "\n";
+  //   for (auto i = 0U; i < clusters[clustIdx].size(); i++) {
+  //     auto track = clusters[clustIdx][i];
+  //     auto z = ((track).stateAtBeamLine().trackStateAtPCA()).position().z();
+  //     auto const& t_mom = track.stateAtBeamLine().trackStateAtPCA().momentum();
+  //     reco::BeamSpot beamspot = (track.stateAtBeamLine()).beamSpot();
+  //     double t_dz2 = std::pow(track.track().dzError(), 2)  // track errror
+  //                    +
+  //                    (std::pow(beamspot.BeamWidthX() * t_mom.x(), 2) + std::pow(beamspot.BeamWidthY() * t_mom.y(), 2)) *
+  //                        std::pow(t_mom.z(), 2) / std::pow(t_mom.perp2(), 2)  // beam spot width
+  //                    + std::pow(vertexSize_, 2);  // intrinsic vertex size, safer for outliers and short lived decays
+  //     std::cout << "Track " << z << " " << t_dz2 << "\n";
+  //   }
+  // }
 
   if (fVerbose) {
     std::cout << " clustering returned  " << clusters.size() << " clusters  from " << seltks.size()

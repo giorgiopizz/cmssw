@@ -103,8 +103,23 @@ reco::VertexRecoToSimCollection VertexAssociatorByPositionAndTracks::associateRe
       const double zdiff = std::abs(recoVertex.z() - simVertex.position().z());
       if (zdiff < absZ_ && zdiff / recoVertex.zError() < sigmaZ_ &&
           (!useTiming || (tdiff < absT_ && tdiff / recoVertex.tError() < sigmaT_))) {
+
+
+          unsigned int matchedTracks = 0;
+          for (auto iTrack = recoVertex.tracks_begin(); iTrack != recoVertex.tracks_end(); ++iTrack) {
+            auto found = trackRecoToSimAssociation_->find(*iTrack);
+
+            if (found == trackRecoToSimAssociation_->end())
+              continue;
+
+            matchedTracks ++;
+          }
+
+
         auto sharedTracks = calculateVertexSharedTracks(recoVertex, simVertex, *trackRecoToSimAssociation_);
-        auto fraction = double(sharedTracks) / recoVertex.tracksSize();
+        // auto fraction = double(sharedTracks) / recoVertex.tracksSize();
+        auto fraction = double(sharedTracks) / matchedTracks;
+
         if (sharedTrackFraction_ < 0 || fraction > sharedTrackFraction_) {
           LogTrace("VertexAssociation") << "   Matched with significance " << zdiff / recoVertex.zError() << " "
                                         << tdiff / recoVertex.tError() << " shared tracks " << sharedTracks
@@ -142,13 +157,14 @@ reco::VertexSimToRecoCollection VertexAssociatorByPositionAndTracks::associateSi
 
     // Associate only primary vertices of the in-time pileup
     // events (BX=0, first vertex in each of the events)
-    if (simVertex.eventId().bunchCrossing() != 0)
-      continue;
-    if (simVertex.eventId().event() != current_event) {
-      current_event = simVertex.eventId().event();
-    } else {
-      continue;
-    }
+
+   if (simVertex.eventId().bunchCrossing() != 0)
+     continue;
+   if (simVertex.eventId().event() != current_event) {
+     current_event = simVertex.eventId().event();
+   } else {
+     continue;
+   }
 
     LogTrace("VertexAssociation") << " TrackingVertex at Z " << simVertex.position().z();
 
@@ -170,8 +186,27 @@ reco::VertexSimToRecoCollection VertexAssociatorByPositionAndTracks::associateSi
       const double zdiff = std::abs(recoVertex.z() - simVertex.position().z());
       if (zdiff < absZ_ && zdiff / recoVertex.zError() < sigmaZ_ &&
           (!useTiming || (tdiff < absT_ && tdiff / recoVertex.tError() < sigmaT_))) {
+        // if (true){
+
+ 
+          unsigned int matchedTracks = 0;
+          for (auto iTP = simVertex.daughterTracks_begin(); iTP != simVertex.daughterTracks_end(); ++iTP) {
+            auto found = trackSimToRecoAssociation_->find(*iTP);
+
+            if (found == trackSimToRecoAssociation_->end())
+              continue;
+
+            matchedTracks ++;
+
+          }
+
+        // std::cout << "At sim vertex " << iSim << "\n";
         auto sharedTracks = calculateVertexSharedTracks(simVertex, recoVertex, *trackSimToRecoAssociation_);
-        auto fraction = double(sharedTracks) / recoVertex.tracksSize();
+        // auto fraction = double(sharedTracks) / simVertex.nDaughterTracks();
+        auto fraction = double(sharedTracks) / matchedTracks;
+        // std::cout << "Matched sim vertex with fraction " << fraction << "\n";
+//        auto sharedTracks = calculateVertexSharedTracks(recoVertex, simVertex, *trackRecoToSimAssociation_);
+//        auto fraction = double(sharedTracks) / recoVertex.tracksSize();
         if (sharedTrackFraction_ < 0 || fraction > sharedTrackFraction_) {
           LogTrace("VertexAssociation") << "   Matched with significance " << zdiff / recoVertex.zError() << " "
                                         << tdiff / recoVertex.tError() << " shared tracks " << sharedTracks

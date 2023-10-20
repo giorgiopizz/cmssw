@@ -27,7 +27,8 @@ from Configuration.ProcessModifiers.vertexInBlocks_cff import vertexInBlocks
 vertexInBlocks.toModify(DA_vectParameters,
     TkDAClusParameters = dict(
     runInBlocks = True,
-    block_size = 128,
+    block_size = 512,
+    # block_size = 10000,
     overlap_frac = 0.5
     )
 )
