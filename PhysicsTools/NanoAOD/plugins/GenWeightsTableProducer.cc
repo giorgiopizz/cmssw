@@ -575,7 +575,8 @@ public:
 
       std::regex weightgroupmg26x("<weightgroup\\s+(?:name|type)=\"(.*)\"\\s+combine=\"(.*)\"\\s*>");
       std::regex weightgroup("<weightgroup\\s+combine=\"(.*)\"\\s+(?:name|type)=\"(.*)\"\\s*>");
-      std::regex weightgroupRwgt("<weightgroup\\s+(?:name|type)=\"(.*)\"\\s*>");
+      std::regex weightgroupRwgt("<weightgroup\\s+(?:name|type)=\"([^\"]*)\"[^>]*>");
+      // std::regex weightgroupRwgt("<weightgroup\\s+(?:name|type)=\"(.*)\"\\s*>");
       std::regex endweightgroup("</weightgroup>");
       std::regex scalewmg26x(
           "<weight\\s+(?:.*\\s+)?id=\"(\\d+)\"\\s*(?:lhapdf=\\d+|dyn=\\s*-?\\d+)?\\s*((?:[mM][uU][rR]|renscfact)=\"("
@@ -586,8 +587,10 @@ public:
 
       //<weight MUF="1.0" MUR="2.0" PDF="306000" id="1006"> MUR=2.0  </weight>
       std::regex scalew(
-          "<weight\\s+(?:.*\\s+)?id=\"(\\d+|\\d+-NNLOPS)\">\\s*(?:lhapdf=\\d+|dyn=\\s*-?\\d+)?\\s*((?:mu[rR]|renscfact)"
-          "=(\\S+)\\s+(?:mu[Ff]|facscfact)=(\\S+)(\\s+.*)?)</weight>");
+          "<weight\\s+(?:.*\\s+)?id=\"(\\d+)\">\\s*(?:lhapdf=\\d+|dyn=\\s*-?\\d+)?\\s*((?:mu[rR]|renscfact)=(\\S+)\\s+("
+          "?:mu[Ff]|facscfact)=(\\S+)(\\s+.*)?)</weight>");
+          // "<weight\\s+(?:.*\\s+)?id=\"(\\d+|\\d+-NNLOPS)\">\\s*(?:lhapdf=\\d+|dyn=\\s*-?\\d+)?\\s*((?:mu[rR]|renscfact)"
+          // "=(\\S+)\\s+(?:mu[Ff]|facscfact)=(\\S+)(\\s+.*)?)</weight>");
       std::regex pdfw(
           "<weight\\s+id=\"(\\d+)\">\\s*(?:PDF set|lhapdf|PDF|pdfset)\\s*=\\s*(\\d+)\\s*(?:\\s.*)?</weight>");
       std::regex pdfwOld("<weight\\s+(?:.*\\s+)?id=\"(\\d+)\">\\s*Member \\s*(\\d+)\\s*(?:.*)</weight>");
@@ -603,7 +606,7 @@ public:
           "\\s*(?:PDF=(\\d+)\\s*MemberID=(\\d+))?\\s*(?:\\s.*)?</"
           "weight>");
 
-      std::regex rwgt("<weight\\s+id=\"(.+)\">(.+)?(</weight>)?");
+      std::regex rwgt("<weight\\s+id=\"([^\"]+)\">([^<]+)?(</weight>)?");
       std::smatch groups;
       for (auto iter = lheInfo->headers_begin(), end = lheInfo->headers_end(); iter != end; ++iter) {
         if (iter->tag() != "initrwgt") {
